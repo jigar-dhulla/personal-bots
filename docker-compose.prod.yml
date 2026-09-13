@@ -26,39 +26,9 @@ x-php: &php
   restart: unless-stopped
 
 services:
-  traefik:
-    image: traefik:v3.7
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=proxy
-      - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entrypoint.to=websecure
-      - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-certs:/letsencrypt
-    networks:
-      - proxy
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-    restart: unless-stopped
-
   web:
     <<: *php
     command: ["sh", "-c", "mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs && php artisan optimize && exec frankenphp php-server --listen :8080 --root public/"]
-    ports:
-      - "${WEB_PORT:-8080}:8080"
     networks:
       - default
       - proxy
@@ -100,8 +70,10 @@ services:
 volumes:
   app-db:
   app-storage:
-  traefik-certs:
 
 networks:
+  # Shared ingress network, created once on the host with
+  # `docker network create proxy` and declared external by every app so
+  # that no single project's teardown can remove it.
   proxy:
-    name: proxy
+    external: true
