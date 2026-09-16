@@ -17,9 +17,9 @@ it('shows the dashboard with a nav menu listing the admin pages', function () {
         ->assertSee('Failed jobs')
         ->assertSee(route('failed-jobs.index'))
         ->assertSee('Group settings')
-        ->assertSee(route('group-settings.index'))
+        ->assertSee(route('yaarpool.group-settings.index'))
         ->assertSee('User settings')
-        ->assertSee(route('user-settings.index'));
+        ->assertSee(route('yaarpool.user-settings.index'));
 });
 
 it('shows the failed and queued job counts', function () {

@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-use App\Ai\Agents\YaarpoolAgent;
+use App\Bots\Bot;
 
 $csv = static fn (?string $value): array => array_values(array_filter(
     array_map('trim', explode(',', (string) $value)),
@@ -36,6 +36,11 @@ return [
     | whose scope (chats + groups) contains the sender's JID and whose triggers
     | match the message body.
     |
+    | This table is derived from the bots registered in `config/bots.php` — one
+    | entry per bot, scoped by that bot's env prefix — so a new bot needs no
+    | edit here. To run several agents for one bot, or an agent with no bot
+    | manifest behind it, append literal entries to the array below.
+    |
     | - agent:    Laravel AI SDK Agent Class. Configure provider, model, and
     |             system prompt via the class's attributes and methods. See:
     |             https://laravel.com/docs/13.x/ai-sdk#agent-configuration
@@ -63,14 +68,19 @@ return [
 
     'number' => preg_replace('/\D/', '', (string) env('WA_PHONE_NUMBER')),
 
-    'agents' => [
-        [
-            'agent' => YaarpoolAgent::class,
-            'triggers' => $csv(env('YAARPOOL_TRIGGERS')), // CSV of trigger phrases. wa:status reveals the account JID for @mention triggers (e.g., @123456789)
-            'chats' => $csv(env('YAARPOOL_CHATS')), // CSV of DM JIDs. run `php artisan wa:chats`
-            'groups' => $csv(env('YAARPOOL_GROUPS')), // CSV of group JIDs. run `php artisan wa:groups`
-        ],
-    ],
+    'agents' => array_values(array_map(static function (string $manifest) use ($csv): array {
+        /** @var Bot $bot */
+        $bot = new $manifest;
+        $prefix = $bot->envPrefix();
+
+        return [
+            'agent' => $bot->agent(),
+            // CSV of trigger phrases. wa:status reveals the account JID for @mention triggers (e.g., @123456789)
+            'triggers' => $csv(env($prefix.'_TRIGGERS')),
+            'chats' => $csv(env($prefix.'_CHATS')),   // CSV of DM JIDs. run `php artisan wa:chats`
+            'groups' => $csv(env($prefix.'_GROUPS')), // CSV of group JIDs. run `php artisan wa:groups`
+        ];
+    }, (array) (require __DIR__.'/bots.php')['registered'])),
 
     /*
     |--------------------------------------------------------------------------

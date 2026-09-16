@@ -1,26 +1,54 @@
-# Yaarpool
+# WhatsApp Bots
 
-A WhatsApp ridesharing bot. Members of a group (or DM) post offers ("driving Pune → Mumbai Sat 9am, 3 seats") and requests ("need a lift Andheri → BKC tomorrow 8am") in natural language; Yaarpool detects intent and persists, lists, edits, or cancels rides on their behalf.
+One WhatsApp number, many bots. Inbound messages are pulled from a local `wacli` SQLite store, dispatched to whichever bots are in scope for that chat and matched by the message body, and their replies are sent back to WhatsApp.
+
+Each bot owns a vertical slice under `app/Bots/<Name>/` — its agent, tools, models, admin screens and artisan commands — and is registered once in `config/bots.php`. Everything shared (WhatsApp transport, the admin dashboard, auth, the public hub) is bot-agnostic.
+
+**Yaarpool**, a ridesharing bot, is the first bot in the repo. Members of a group post offers ("driving Pune → Mumbai Sat 9am, 3 seats") and requests ("need a lift Andheri → BKC tomorrow 8am") in natural language; it detects intent and persists, lists, edits, joins, or cancels rides on their behalf.
 
 ## How it works
 
-Inbound WhatsApp messages are pulled from a local `wacli` SQLite store and routed to `App\Ai\Agents\YaarpoolAgent`. The agent is built on the Laravel AI SDK and backed by Google Gemini by default. Depending on intent, it calls one of five tools:
+```
+wacli sync ──► ~/.wacli/wacli.db ──► wa:listen ──► AgentRouter ──► <Bot>Agent ──► tool ──► reply
+                                                   (scope + triggers)
+```
+
+`AgentRouter` (from the transport package) dispatches a message to every agent whose scope contains the chat JID *and* whose triggers match the body. The agent table in `config/whatsapp-agent.php` is derived from `config/bots.php`, one entry per registered bot, each scoped by its own env prefix.
+
+Agents are built on the Laravel AI SDK and backed by Google Gemini by default. They extend `App\Bots\BotAgent`, which supplies the parts every bot shares — binding the conversation to a chat, registering the sender as a user, and assembling the system prompt (current date/time, configured triggers, WhatsApp etiquette rules) around the bot's own persona, tool guidance, and extra rules.
+
+WhatsApp transport is handled by [`jigar-dhulla/laravel-whatsapp-ai-agent`](https://github.com/jigar-dhulla/laravel-whatsapp-ai-agent), which in turn relies on the external `wacli` sync daemon to maintain `~/.wacli/wacli.db`.
+
+## Adding a bot
+
+1. Create the slice under `app/Bots/<Name>/`:
+   - `<Name>Agent extends App\Bots\BotAgent` — implement `persona()`, `guidance()`, `tools()`, and optionally `rules()`.
+   - `Tools/` — one class per tool, implementing `Laravel\Ai\Contracts\Tool`.
+   - `Models/`, `Enums/`, `Http/Controllers/`, `Console/` as needed. Models outside `App\Models` need a `#[UseFactory(...)]` attribute to find their factory.
+2. Write a manifest implementing `App\Bots\Bot` — its key, name, tagline, agent class, env prefix, route file, commands, admin nav links and dashboard cards.
+3. Register the manifest class in `config/bots.php`.
+4. Add `<PREFIX>_TRIGGERS`, `<PREFIX>_CHATS`, `<PREFIX>_GROUPS` to `.env`.
+
+That's it — the agent table, public hub entry, routes, admin nav, dashboard cards and artisan commands all follow from the manifest. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify the wiring with `php artisan wa:status`.
+
+## Yaarpool's tools
 
 | Tool | Purpose | Owner-only |
 |---|---|---|
 | `ride_request` | Persist a passenger looking for a lift | — |
 | `ride_create` | Persist a driver publishing a trip | — |
 | `ride_list` | List upcoming rides in the current chat | — |
+| `ride_join` | Reserve seat(s) on someone else's offer | — |
 | `ride_update` | Edit a ride the user previously posted | ✓ |
 | `ride_delete` | Cancel a ride the user previously posted | ✓ |
+| `route_travellers` | List chat members whose saved personal route matches | — |
+| `user_settings` | Save or show the sender's personal commute defaults | — |
 
 Owner-only tools refuse the call unless both the chat JID and sender JID on the ride match the inbound WhatsApp message; rides in other chats are treated as not-found rather than surfaced.
 
-WhatsApp transport is handled by [`jigar-dhulla/laravel-whatsapp-ai-agent`](https://github.com/jigar-dhulla/laravel-whatsapp-ai-agent), which in turn relies on the external `wacli` sync daemon to maintain `~/.wacli/wacli.db`.
-
 ## Requirements
 
-- PHP 8.3+
+- PHP 8.4+
 - A Gemini API key (`GEMINI_API_KEY`)
 - `wacli sync --follow --refresh-contacts --refresh-groups` running externally to keep `~/.wacli/wacli.db` populated
 
@@ -33,7 +61,7 @@ php artisan key:generate
 php artisan migrate
 ```
 
-Add `GEMINI_API_KEY` to `.env`, then wire your group / DM JID into `config/whatsapp-agent.php`. Discover JIDs with:
+Add `GEMINI_API_KEY` to `.env`, then wire each bot's chat / group JIDs into its `<PREFIX>_CHATS` / `<PREFIX>_GROUPS` env vars. Discover JIDs with:
 
 ```bash
 php artisan wa:chats     # list 1:1 chats
@@ -91,11 +119,29 @@ php artisan test --compact
 
 ## Project structure
 
-- `app/Ai/Agents/YaarpoolAgent.php` — the registered agent; receives the inbound message and orchestrates tool calls.
-- `app/Ai/Tools/` — one file per tool (`RideRequestTool`, `RideCreateTool`, `RideListTool`, `RideUpdateTool`, `RideDeleteTool`).
-- `app/Models/Ride.php` and the `rides` table — canonical store for both ride requests and offers, distinguished by a `type` enum.
-- `config/whatsapp-agent.php` — registers the agent FQCN against chat/group JIDs.
+```
+app/
+  Bots/
+    Bot.php               # manifest contract: what a bot contributes to the app
+    BotAgent.php          # shared agent base (conversation binding, prompt skeleton)
+    BotRegistry.php       # resolves the roster from config/bots.php
+    Yaarpool/             # one folder per bot
+      YaarpoolAgent.php
+      YaarpoolBot.php     # the manifest
+      Tools/ Models/ Enums/ Http/Controllers/ Console/
+  Http/Controllers/       # shared: auth, admin dashboard, failed jobs
+  Models/User.php         # shared: dashboard login + WhatsApp sender registry
+config/
+  bots.php                # the bot roster — the one place a bot is registered
+  whatsapp-agent.php      # transport config; agent table derived from bots.php
+routes/
+  web.php                 # hub + shared admin, then each bot's route file
+  bots/yaarpool.php
+resources/views/
+  welcome.blade.php       # the public hub listing every bot
+  yaarpool/               # one folder per bot's views
+```
 
 ## License
 
-Yaarpool is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0-only)](https://www.gnu.org/licenses/agpl-3.0.html). The full text is in [`LICENSE`](LICENSE).
+Licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0-only)](https://www.gnu.org/licenses/agpl-3.0.html). The full text is in [`LICENSE`](LICENSE).

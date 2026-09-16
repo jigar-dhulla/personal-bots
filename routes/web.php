@@ -1,28 +1,20 @@
 <?php
 
+use App\Bots\Bot;
+use App\Bots\BotRegistry;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\FailedJobsController;
-use App\Http\Controllers\GroupSettingsController;
-use App\Http\Controllers\RidesController;
-use App\Http\Controllers\UserSettingsController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
+Route::get('/', function (BotRegistry $bots) {
     $number = config('whatsapp-agent.number');
 
     return view('welcome', [
+        'bots' => $bots->all(),
         'whatsappInviteUrl' => $number ? 'https://wa.me/'.$number : null,
     ]);
-});
-
-Route::get('/usage', function () {
-    $number = config('whatsapp-agent.number');
-
-    return view('usage', [
-        'whatsappInviteUrl' => $number ? 'https://wa.me/'.$number : null,
-    ]);
-})->name('usage');
+})->name('home');
 
 Route::prefix('admin')->group(function () {
     Route::middleware('guest')->group(function () {
@@ -37,19 +29,25 @@ Route::prefix('admin')->group(function () {
         Route::get('/failed-jobs', [FailedJobsController::class, 'index'])->name('failed-jobs.index');
         Route::post('/failed-jobs/{uuid}/retry', [FailedJobsController::class, 'retry'])->name('failed-jobs.retry');
         Route::post('/failed-jobs/flush', [FailedJobsController::class, 'flush'])->name('failed-jobs.flush');
-
-        Route::get('/rides', [RidesController::class, 'index'])->name('rides.index');
-        Route::get('/rides/{ride}', [RidesController::class, 'show'])->name('rides.show');
-        Route::delete('/rides/{ride}', [RidesController::class, 'destroy'])->name('rides.destroy');
-
-        Route::get('/group-settings', [GroupSettingsController::class, 'index'])->name('group-settings.index');
-        Route::post('/group-settings', [GroupSettingsController::class, 'store'])->name('group-settings.store');
-        Route::put('/group-settings/{groupSetting}', [GroupSettingsController::class, 'update'])->name('group-settings.update');
-        Route::delete('/group-settings/{groupSetting}', [GroupSettingsController::class, 'destroy'])->name('group-settings.destroy');
-
-        Route::get('/user-settings', [UserSettingsController::class, 'index'])->name('user-settings.index');
-        Route::post('/user-settings', [UserSettingsController::class, 'store'])->name('user-settings.store');
-        Route::put('/user-settings/{userSetting}', [UserSettingsController::class, 'update'])->name('user-settings.update');
-        Route::delete('/user-settings/{userSetting}', [UserSettingsController::class, 'destroy'])->name('user-settings.destroy');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Bot Routes
+|--------------------------------------------------------------------------
+|
+| Every bot registered in `config/bots.php` contributes its own public page
+| and admin screens. Each route file is loaded with the bot's manifest
+| available as `$bot`.
+|
+*/
+
+/** @var Bot $bot */
+foreach (app(BotRegistry::class)->all() as $bot) {
+    $routes = $bot->routes();
+
+    if ($routes !== null && file_exists($routes)) {
+        require $routes;
+    }
+}
