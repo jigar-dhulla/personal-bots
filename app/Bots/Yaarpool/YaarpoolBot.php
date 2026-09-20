@@ -35,21 +35,6 @@ class YaarpoolBot implements Bot
         return YaarpoolAgent::class;
     }
 
-    public function envPrefix(): string
-    {
-        return 'YAARPOOL';
-    }
-
-    public function routes(): ?string
-    {
-        return base_path('routes/bots/yaarpool.php');
-    }
-
-    public function publicRoute(): ?string
-    {
-        return 'yaarpool.home';
-    }
-
     /**
      * @return array<int, class-string<Command>>
      */

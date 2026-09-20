@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 use App\Bots\Bot;
 
 $csv = static fn (?string $value): array => array_values(array_filter(
@@ -71,7 +72,7 @@ return [
     'agents' => array_values(array_map(static function (string $manifest) use ($csv): array {
         /** @var Bot $bot */
         $bot = new $manifest;
-        $prefix = $bot->envPrefix();
+        $prefix = strtoupper($bot->key());
 
         return [
             'agent' => $bot->agent(),

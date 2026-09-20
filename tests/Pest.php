@@ -44,7 +44,20 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Point `whatsapp-agent.agents` at a single entry for the given agent class,
+ * so instruction tests can control the triggers an agent sees.
+ *
+ * @param  array<string, mixed>  $overrides
+ */
+function setAgentConfig(string $agent, array $overrides = []): void
 {
-    // ..
+    config(['whatsapp-agent.agents' => [
+        array_merge([
+            'agent' => $agent,
+            'triggers' => [],
+            'chats' => [],
+            'groups' => [],
+        ], $overrides),
+    ]]);
 }

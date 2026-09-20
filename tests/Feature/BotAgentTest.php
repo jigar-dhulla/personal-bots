@@ -4,27 +4,15 @@ declare(strict_types=1);
 
 use Tests\Fixtures\EchoAgent;
 
-function setBotAgentConfig(array $overrides = []): void
-{
-    config(['whatsapp-agent.agents' => [
-        array_merge([
-            'agent' => EchoAgent::class,
-            'triggers' => [],
-            'chats' => [],
-            'groups' => [],
-        ], $overrides),
-    ]]);
-}
-
 it('opens the instructions with the agent persona', function () {
-    setBotAgentConfig();
+    setAgentConfig(EchoAgent::class);
 
     expect((string) (new EchoAgent)->instructions())
         ->toStartWith('You are Echo, a test bot.');
 });
 
 it('includes the bot guidance between the context and the rules', function () {
-    setBotAgentConfig();
+    setAgentConfig(EchoAgent::class);
 
     $instructions = (string) (new EchoAgent)->instructions();
 
@@ -36,14 +24,14 @@ it('includes the bot guidance between the context and the rules', function () {
 });
 
 it('injects the configured triggers into the instructions', function () {
-    setBotAgentConfig(['triggers' => ['@echo', '@123456789']]);
+    setAgentConfig(EchoAgent::class, ['triggers' => ['@echo', '@123456789']]);
 
     expect((string) (new EchoAgent)->instructions())
         ->toContain('You as agent are mentioned/triggered by these triggers: @echo, @123456789');
 });
 
 it('omits the triggers line when no triggers are configured', function () {
-    setBotAgentConfig(['triggers' => []]);
+    setAgentConfig(EchoAgent::class, ['triggers' => []]);
 
     expect((string) (new EchoAgent)->instructions())
         ->not->toContain('You as agent are mentioned/triggered by these triggers');
@@ -74,7 +62,7 @@ it('omits the triggers line when the agent is absent from config', function () {
 
 it('includes the current date and timezone for resolving relative phrases', function () {
     Carbon\Carbon::setTestNow('2026-06-02 09:30:00');
-    setBotAgentConfig();
+    setAgentConfig(EchoAgent::class);
 
     $instructions = (string) (new EchoAgent)->instructions();
 
@@ -85,7 +73,7 @@ it('includes the current date and timezone for resolving relative phrases', func
 });
 
 it('applies the WhatsApp etiquette rules every bot shares', function () {
-    setBotAgentConfig();
+    setAgentConfig(EchoAgent::class);
 
     $instructions = (string) (new EchoAgent)->instructions();
 
@@ -96,7 +84,7 @@ it('applies the WhatsApp etiquette rules every bot shares', function () {
 });
 
 it('appends the bot-specific rules after the shared ones', function () {
-    setBotAgentConfig();
+    setAgentConfig(EchoAgent::class);
 
     $instructions = (string) (new EchoAgent)->instructions();
 

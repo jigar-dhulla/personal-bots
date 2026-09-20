@@ -33,21 +33,6 @@ class EchoBot implements Bot
         return EchoAgent::class;
     }
 
-    public function envPrefix(): string
-    {
-        return 'ECHO';
-    }
-
-    public function routes(): ?string
-    {
-        return null;
-    }
-
-    public function publicRoute(): ?string
-    {
-        return null;
-    }
-
     /**
      * @return array<int, class-string<Command>>
      */

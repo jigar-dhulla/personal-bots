@@ -14,10 +14,7 @@
         <div class="mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-10">
             <nav class="flex flex-wrap items-center gap-4">
                 <span class="flex items-center gap-2.5 font-display font-extrabold">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-ink/10 bg-saffron text-ink shadow-card">
-                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM7 9h10v2H7V9zm6 5H7v-2h6v2zm4-6H7V6h10v2z"/></svg>
-                    </span>
-                    <span class="text-xl tracking-tight">{{ config('app.name') }}</span>
+                    <x-brand name-class="text-xl" />
                 </span>
 
                 @if ($whatsappInviteUrl)
@@ -39,13 +36,13 @@
 
             <section class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 @forelse ($bots as $bot)
-                    @php($publicRoute = $bot->publicRoute())
+                    @php($publicRoute = $bot->key().'.home')
 
                     <div class="flex flex-col rounded-3xl border border-ink/10 bg-white p-6 shadow-card">
                         <h2 class="font-display text-xl font-extrabold tracking-tight">{{ $bot->name() }}</h2>
                         <p class="mt-2 flex-1 text-sm opacity-75">{{ $bot->tagline() }}</p>
 
-                        @if ($publicRoute)
+                        @if (Route::has($publicRoute))
                             <a href="{{ route($publicRoute) }}" class="mt-5 inline-flex items-center gap-1.5 self-start text-sm font-bold text-emerald-700 transition hover:text-emerald-800">
                                 Learn more
                                 <span aria-hidden="true">&rarr;</span>

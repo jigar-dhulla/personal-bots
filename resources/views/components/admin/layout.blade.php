@@ -18,10 +18,7 @@
         <div class="mx-auto max-w-5xl px-6 py-10">
             <nav class="flex flex-wrap items-center gap-4 rounded-3xl border border-ink/10 bg-white px-5 py-3.5 shadow-card">
                 <a href="{{ route('home') }}" class="flex items-center gap-2.5 font-display font-extrabold">
-                    <span class="flex h-9 w-9 items-center justify-center rounded-xl border border-ink/10 bg-saffron text-ink shadow-card">
-                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM7 9h10v2H7V9zm6 5H7v-2h6v2zm4-6H7V6h10v2z"/></svg>
-                    </span>
-                    <span class="text-lg tracking-tight">{{ config('app.name') }}</span>
+                    <x-brand />
                 </a>
 
                 <div class="flex flex-wrap items-center gap-1">

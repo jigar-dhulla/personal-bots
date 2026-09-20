@@ -2,8 +2,8 @@
 
 namespace App\Bots\Yaarpool\Http\Controllers;
 
+use App\Bots\Yaarpool\Enums\Weekday;
 use App\Bots\Yaarpool\Models\UserSetting;
-use App\Enums\Weekday;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

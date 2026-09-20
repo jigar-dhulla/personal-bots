@@ -7,10 +7,10 @@ use App\Bots\Yaarpool\YaarpoolAgent;
 
 /**
  * Evaluate `config/whatsapp-agent.php` from scratch with the given env in
- * place, and return the agent entry at $index. The file derives its agent
- * table from `config/bots.php`, so this exercises the real wiring.
+ * place, and return the first agent entry. The file derives its agent table
+ * from `config/bots.php`, so this exercises the real wiring.
  */
-function loadAgentsConfig(array $env, int $index = 0): array
+function loadAgentsConfig(array $env): array
 {
     foreach ($env as $key => $value) {
         if ($value === null) {
@@ -23,7 +23,7 @@ function loadAgentsConfig(array $env, int $index = 0): array
         }
     }
 
-    return (require base_path('config/whatsapp-agent.php'))['agents'][$index];
+    return (require base_path('config/whatsapp-agent.php'))['agents'][0];
 }
 
 afterEach(function () {
@@ -92,14 +92,13 @@ it('parses a single value without commas', function () {
     expect($agent['groups'])->toBe(['120363409213306573@g.us']);
 });
 
-it('scopes each bot to its own env prefix', function () {
+it("reads each bot's scope from env keys named after its upper-cased key", function () {
     $agent = loadAgentsConfig([
         'YAARPOOL_TRIGGERS' => '@yaarpool',
-        'ECHO_TRIGGERS' => '@echo',
+        'YAARPOOL_CHATS' => '111@s.whatsapp.net',
     ]);
 
-    expect($agent['triggers'])->toBe(['@yaarpool']);
-
-    unset($_ENV['ECHO_TRIGGERS'], $_SERVER['ECHO_TRIGGERS']);
-    putenv('ECHO_TRIGGERS');
+    expect($agent['agent'])->toBe(YaarpoolAgent::class)
+        ->and($agent['triggers'])->toBe(['@yaarpool'])
+        ->and($agent['chats'])->toBe(['111@s.whatsapp.net']);
 });

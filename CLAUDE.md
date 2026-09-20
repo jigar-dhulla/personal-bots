@@ -21,12 +21,12 @@ If this app needs behaviour the package doesn't support, raise it as a feature r
 
 ## Bot Architecture
 
-- `App\Bots\Bot` — the manifest contract. Declares a bot's key, name, tagline, agent class, env prefix, route file, artisan commands, admin nav links and dashboard cards. Must be constructible with no arguments (`config/whatsapp-agent.php` instantiates it before the container boots).
+- `App\Bots\Bot` — the manifest contract. Declares a bot's key, name, tagline, agent class, artisan commands, admin nav links and dashboard cards. Everything else is derived from `key()` by convention: env keys (`<KEY>_TRIGGERS` / `_CHATS` / `_GROUPS`, upper-cased), route file (`routes/bots/<key>.php`, loaded when it exists), landing page (the `<key>.home` route, linked from the hub when defined), URLs (`/<key>`, `/admin/<key>/…`) and views (`resources/views/<key>/`). Must be constructible with no arguments (`config/whatsapp-agent.php` instantiates it before the container boots).
 - `App\Bots\BotAgent` — abstract agent base. Uses `RemembersWhatsAppConversations` (which sets `$chatJid` / `$senderJid` before `tools()` is called and injects chat history), registers the sender via `User::registerFromWhatsApp()`, and assembles `instructions()` as: persona → context (current date/time + configured triggers) → guidance → `Rules:` block (shared rules then the bot's own). Subclasses implement `persona()`, `guidance()`, `tools()`, and optionally `rules()`.
 - `App\Bots\BotRegistry` — resolves the roster from `config('bots.registered')`. Read by the public hub, the admin nav composer (`AppServiceProvider`), the dashboard, and `routes/web.php`.
-- `config/bots.php` — the single registration point. `config/whatsapp-agent.php` derives its `agents` table from it (one entry per bot, scoped by `<PREFIX>_TRIGGERS` / `_CHATS` / `_GROUPS`), so adding a bot needs no edit there.
+- `config/bots.php` — the single registration point. `config/whatsapp-agent.php` derives its `agents` table from it (one entry per bot, scoped by `<KEY>_TRIGGERS` / `_CHATS` / `_GROUPS`), so adding a bot needs no edit there.
 
-To add a bot: create `app/Bots/<Name>/` with an agent extending `BotAgent`, its `Tools/`, a `<Name>Bot` manifest, `routes/bots/<name>.php` and `resources/views/<name>/`; register the manifest in `config/bots.php`; add the three env vars. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify wiring with `wa:status`.
+To add a bot: create `app/Bots/<Name>/` with an agent extending `BotAgent`, its `Tools/`, a `<Name>Bot` manifest, `routes/bots/<name>.php` and `resources/views/<name>/` (both named after the manifest's `key()`); register the manifest in `config/bots.php`; add the three env vars. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify wiring with `wa:status`.
 
 Models outside `App\Models` do not get automatic factory resolution — give them `#[UseFactory(SomeFactory::class)]` and set `protected $model` on the factory (see `app/Bots/Yaarpool/Models/`).
 

@@ -17,7 +17,7 @@
             note="Jobs waiting to be processed." />
     </div>
 
-    @foreach ($botSections as $section)
+    @forelse ($botSections as $section)
         <h2 class="mt-10 text-xs font-bold uppercase tracking-wider opacity-60">{{ $section['name'] }}</h2>
 
         <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -29,11 +29,9 @@
                     :note="$card['note']" />
             @endforeach
         </div>
-    @endforeach
-
-    @if ($botSections->isEmpty())
+    @empty
         <p class="mt-10 rounded-3xl border border-dashed border-ink/20 px-6 py-8 text-center text-sm opacity-70">
             No bots are registered yet. Add one to <code class="font-mono">config/bots.php</code>.
         </p>
-    @endif
+    @endforelse
 </x-admin.layout>

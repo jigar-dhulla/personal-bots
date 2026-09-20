@@ -7,14 +7,9 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\FailedJobsController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function (BotRegistry $bots) {
-    $number = config('whatsapp-agent.number');
-
-    return view('welcome', [
-        'bots' => $bots->all(),
-        'whatsappInviteUrl' => $number ? 'https://wa.me/'.$number : null,
-    ]);
-})->name('home');
+Route::get('/', fn (BotRegistry $bots) => view('welcome', [
+    'bots' => $bots->all(),
+]))->name('home');
 
 Route::prefix('admin')->group(function () {
     Route::middleware('guest')->group(function () {
@@ -38,16 +33,16 @@ Route::prefix('admin')->group(function () {
 |--------------------------------------------------------------------------
 |
 | Every bot registered in `config/bots.php` contributes its own public page
-| and admin screens. Each route file is loaded with the bot's manifest
-| available as `$bot`.
+| and admin screens from `routes/bots/<key>.php`. A bot with no web surface
+| simply ships no such file.
 |
 */
 
 /** @var Bot $bot */
 foreach (app(BotRegistry::class)->all() as $bot) {
-    $routes = $bot->routes();
+    $routes = base_path("routes/bots/{$bot->key()}.php");
 
-    if ($routes !== null && file_exists($routes)) {
+    if (file_exists($routes)) {
         require $routes;
     }
 }

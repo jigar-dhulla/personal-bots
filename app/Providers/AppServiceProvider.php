@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Bots\Bot;
 use App\Bots\BotRegistry;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Support\Facades\View;
@@ -19,17 +18,26 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Wire up whatever the registered bots contribute to the shared app:
-     * their artisan commands (which live outside `app/Console/Commands` and
-     * so are not auto-discovered) and the admin nav.
+     * Wire up whatever the registered bots contribute to the shared app: their
+     * artisan commands (which live outside `app/Console/Commands` and so are
+     * not auto-discovered) and the admin nav. The wa.me invite link is shared
+     * with every view so no bot has to rebuild it for its landing page.
      */
     public function boot(BotRegistry $bots): void
     {
-        $bots->all()->each(fn (Bot $bot) => $this->commands($bot->commands()));
+        if ($this->app->runningInConsole()) {
+            $this->commands($bots->all()->flatMap->commands()->all());
+        }
 
         View::composer(
             'components.admin.layout',
-            fn (ViewContract $view) => $view->with('bots', app(BotRegistry::class)->all()),
+            fn (ViewContract $view) => $view->with('bots', $bots->all()),
         );
+
+        View::composer('*', function (ViewContract $view): void {
+            $number = config('whatsapp-agent.number');
+
+            $view->with('whatsappInviteUrl', $number ? 'https://wa.me/'.$number : null);
+        });
     }
 }

@@ -74,7 +74,7 @@ abstract class BotAgent implements Agent, Conversational, HasTools
      *
      * @return array<int, string>
      */
-    public function triggers(): array
+    protected function triggers(): array
     {
         $entry = (new Collection(config('whatsapp-agent.agents')))
             ->firstWhere(static fn (array $agent) => Arr::get($agent, 'agent') === static::class, []);

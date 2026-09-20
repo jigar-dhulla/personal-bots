@@ -20,7 +20,14 @@ use Illuminate\Console\Command;
 interface Bot
 {
     /**
-     * URL-safe key used for route names, URL segments, and view namespaces.
+     * URL-safe key identifying this bot. Everything shared is derived from it
+     * by convention, so a bot declares it once:
+     *
+     * - env keys:      <KEY>_TRIGGERS / _CHATS / _GROUPS, upper-cased
+     * - route file:    routes/bots/<key>.php, loaded when it exists
+     * - landing page:  the `<key>.home` route, linked from the hub when defined
+     * - URLs:          /<key> and /admin/<key>/…
+     * - views:         resources/views/<key>/…
      */
     public function key(): string;
 
@@ -40,22 +47,6 @@ interface Bot
      * @return class-string
      */
     public function agent(): string;
-
-    /**
-     * Prefix for this bot's env keys: <PREFIX>_TRIGGERS, <PREFIX>_CHATS,
-     * <PREFIX>_GROUPS. Each is a CSV list read by `config/whatsapp-agent.php`.
-     */
-    public function envPrefix(): string;
-
-    /**
-     * Absolute path to the bot's route file, or null when it has no web surface.
-     */
-    public function routes(): ?string;
-
-    /**
-     * Route name of the bot's public landing page, or null when it has none.
-     */
-    public function publicRoute(): ?string;
 
     /**
      * Artisan commands this bot ships.

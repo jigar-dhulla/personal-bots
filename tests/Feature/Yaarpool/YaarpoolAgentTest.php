@@ -4,34 +4,22 @@ declare(strict_types=1);
 
 use App\Bots\Yaarpool\YaarpoolAgent;
 
-function setAgentConfig(array $overrides = []): void
-{
-    config(['whatsapp-agent.agents' => [
-        array_merge([
-            'agent' => YaarpoolAgent::class,
-            'triggers' => [],
-            'chats' => [],
-            'groups' => [],
-        ], $overrides),
-    ]]);
-}
-
 it('introduces itself as the ridesharing assistant', function () {
-    setAgentConfig();
+    setAgentConfig(YaarpoolAgent::class);
 
     expect((string) (new YaarpoolAgent)->instructions())
         ->toStartWith('You are Yaarpool, a friendly ridesharing assistant');
 });
 
 it('injects the configured triggers into the instructions', function () {
-    setAgentConfig(['triggers' => ['@yaarpool', '@123456789']]);
+    setAgentConfig(YaarpoolAgent::class, ['triggers' => ['@yaarpool', '@123456789']]);
 
     expect((string) (new YaarpoolAgent)->instructions())
         ->toContain('You as agent are mentioned/triggered by these triggers: @yaarpool, @123456789');
 });
 
 it('describes every tool the agent can call', function () {
-    setAgentConfig();
+    setAgentConfig(YaarpoolAgent::class);
 
     $instructions = (string) (new YaarpoolAgent)->instructions();
 
@@ -50,7 +38,7 @@ it('registers a tool for every documented capability', function () {
 });
 
 it('keeps the ownership and default-location rules', function () {
-    setAgentConfig();
+    setAgentConfig(YaarpoolAgent::class);
 
     $instructions = (string) (new YaarpoolAgent)->instructions();
 
@@ -61,7 +49,7 @@ it('keeps the ownership and default-location rules', function () {
 });
 
 it('inherits the shared rule about responding only to people who triggered it', function () {
-    setAgentConfig();
+    setAgentConfig(YaarpoolAgent::class);
 
     expect((string) (new YaarpoolAgent)->instructions())
         ->toContain('Respond ONLY to people who have mentioned/triggered you.');
@@ -69,7 +57,7 @@ it('inherits the shared rule about responding only to people who triggered it', 
 
 it('includes the current date and timezone for resolving relative phrases', function () {
     Carbon\Carbon::setTestNow('2026-06-02 09:30:00');
-    setAgentConfig();
+    setAgentConfig(YaarpoolAgent::class);
 
     $instructions = (string) (new YaarpoolAgent)->instructions();
 

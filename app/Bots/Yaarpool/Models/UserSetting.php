@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Bots\Yaarpool\Models;
 
-use App\Enums\Weekday;
+use App\Bots\Yaarpool\Enums\Weekday;
 use Database\Factories\Yaarpool\UserSettingFactory;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

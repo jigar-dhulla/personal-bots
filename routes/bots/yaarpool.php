@@ -7,20 +7,9 @@ use App\Bots\Yaarpool\Http\Controllers\RidesController;
 use App\Bots\Yaarpool\Http\Controllers\UserSettingsController;
 use Illuminate\Support\Facades\Route;
 
-$whatsappInviteUrl = static function (): ?string {
-    $number = config('whatsapp-agent.number');
-
-    return $number ? 'https://wa.me/'.$number : null;
-};
-
-Route::prefix('yaarpool')->name('yaarpool.')->group(function () use ($whatsappInviteUrl) {
-    Route::get('/', fn () => view('yaarpool.home', [
-        'whatsappInviteUrl' => $whatsappInviteUrl(),
-    ]))->name('home');
-
-    Route::get('/usage', fn () => view('yaarpool.usage', [
-        'whatsappInviteUrl' => $whatsappInviteUrl(),
-    ]))->name('usage');
+Route::prefix('yaarpool')->name('yaarpool.')->group(function () {
+    Route::view('/', 'yaarpool.home')->name('home');
+    Route::view('/usage', 'yaarpool.usage')->name('usage');
 });
 
 /** Links published before the site became a multi-bot hub pointed at /usage. */
