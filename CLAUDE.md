@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Yaarpool is a WhatsApp ridesharing bot. Users post offers and requests in natural language inside a group (or DM); the bot detects intent and calls the matching tool.
+This repo hosts a set of personal WhatsApp bots sharing **one phone number**. Inbound messages are read from a local `wacli` SQLite store and dispatched to every bot whose scope (chats + groups) contains the chat JID and whose triggers match the message body.
+
+Each bot owns a vertical slice under `app/Bots/<Name>/` — agent, tools, models, enums, controllers, commands — and is registered once in `config/bots.php`. Anything outside `app/Bots/<Name>/` is shared and must stay bot-agnostic.
+
+**Yaarpool** (`app/Bots/Yaarpool/`) is the ridesharing bot and currently the only one. Do not add bot-specific code to shared namespaces (`App\Models`, `App\Http\Controllers`, `App\Enums`, top-level views) — put it in the bot's slice.
 
 WhatsApp transport is provided by the `jigar-dhulla/laravel-whatsapp-ai-agent` package. Never edit the vendor source — instead, treat the package as a contract that must support:
 
@@ -13,12 +17,24 @@ WhatsApp transport is provided by the `jigar-dhulla/laravel-whatsapp-ai-agent` p
 - injecting recent chat history into the LLM context,
 - sending the agent's reply back to WhatsApp.
 
-If yaarpool needs behaviour the package doesn't support, raise it as a feature request against the package rather than patching `vendor/`.
+If this app needs behaviour the package doesn't support, raise it as a feature request against the package rather than patching `vendor/`.
 
-## Agents and Tools
+## Bot Architecture
 
-- `App\Ai\Agents\YaarpoolAgent` is the registered agent (see `config/whatsapp-agent.php`). It uses the `RemembersWhatsAppConversations` trait, which sets `$chatJid` and `$senderJid` from the inbound message before `tools()` is called and injects recent chat history into the LLM context.
-- Tools live under `app/Ai/Tools/`. Each implements `Laravel\Ai\Contracts\Tool` with `name()`, `description()`, `schema(JsonSchema)`, and `handle(Request)`. The string returned from `handle()` becomes the WhatsApp reply.
+- `App\Bots\Bot` — the manifest contract. Declares a bot's key, name, tagline, agent class, artisan commands, admin nav links and dashboard cards. Everything else is derived from `key()` by convention: env keys (`<KEY>_TRIGGERS` / `_CHATS` / `_GROUPS`, upper-cased), route file (`routes/bots/<key>.php`, loaded when it exists), landing page (the `<key>.home` route, linked from the hub when defined), URLs (`/<key>`, `/admin/<key>/…`) and views (`resources/views/<key>/`). Must be constructible with no arguments (`config/whatsapp-agent.php` instantiates it before the container boots).
+- `App\Bots\BotAgent` — abstract agent base. Uses `RemembersWhatsAppConversations` (which sets `$chatJid` / `$senderJid` before `tools()` is called and injects chat history), registers the sender via `User::registerFromWhatsApp()`, and assembles `instructions()` as: persona → context (current date/time + configured triggers) → guidance → `Rules:` block (shared rules then the bot's own). Subclasses implement `persona()`, `guidance()`, `tools()`, and optionally `rules()`.
+- `App\Bots\BotRegistry` — resolves the roster from `config('bots.registered')`. Read by the public hub, the admin nav composer (`AppServiceProvider`), the dashboard, and `routes/web.php`.
+- `config/bots.php` — the single registration point. `config/whatsapp-agent.php` derives its `agents` table from it (one entry per bot, scoped by `<KEY>_TRIGGERS` / `_CHATS` / `_GROUPS`), so adding a bot needs no edit there.
+
+To add a bot: create `app/Bots/<Name>/` with an agent extending `BotAgent`, its `Tools/`, a `<Name>Bot` manifest, `routes/bots/<name>.php` and `resources/views/<name>/` (both named after the manifest's `key()`); register the manifest in `config/bots.php`; add the three env vars. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify wiring with `wa:status`.
+
+Models outside `App\Models` do not get automatic factory resolution — give them `#[UseFactory(SomeFactory::class)]` and set `protected $model` on the factory (see `app/Bots/Yaarpool/Models/`).
+
+Route and view names are namespaced per bot (`yaarpool.rides.index`, `view('yaarpool.rides.index')`) so two bots can both have "settings" screens. Admin URLs live under `/admin/<bot>/…`, public pages under `/<bot>`.
+
+## Yaarpool
+
+- `App\Bots\Yaarpool\YaarpoolAgent` is the agent. Tools live under `app/Bots/Yaarpool/Tools/`, each implementing `Laravel\Ai\Contracts\Tool` with `name()`, `description()`, `schema(JsonSchema)`, and `handle(Request)`. The string returned from `handle()` becomes the WhatsApp reply.
 
 | Tool | Purpose | Owner-only |
 |---|---|---|
@@ -33,13 +49,13 @@ If yaarpool needs behaviour the package doesn't support, raise it as a feature r
 
 Owner-only tools refuse the call unless both `chat_jid` and `sender_jid` on the ride match the inbound message; rides in other chats are treated as not-found rather than surfaced.
 
-Group defaults: each chat can have admin-configured defaults in the `group_settings` table (`App\Models\GroupSetting`, keyed by `chat_jid`) — a `default_from_location` (required) and an optional `default_to_location`. `ride_create` / `ride_request` make `from`/`to` optional in their schema and fall back to these defaults via `GroupSetting::forChat()`, asking the user only when a location is neither stated nor defaulted. Admins manage them with `php artisan group:settings`.
+Group defaults: each chat can have admin-configured defaults in the `group_settings` table (`App\Bots\Yaarpool\Models\GroupSetting`, keyed by `chat_jid`) — a `default_from_location` (required) and an optional `default_to_location`. `ride_create` / `ride_request` make `from`/`to` optional in their schema and fall back to these defaults via `GroupSetting::forChat()`, asking the user only when a location is neither stated nor defaulted. Admins manage them with `php artisan group:settings`.
 
-Personal defaults: each sender can save their own commute profile in the `user_settings` table (`App\Models\UserSetting`, keyed by `sender_jid`) — a `default_from_location`, optional `default_to_location`, `office_start_time` / `office_end_time`, and `office_days` (an array of weekdays, or `["daily"]`, normalized via `UserSetting::normalizeOfficeDays()` — handy for hybrid schedules). The `user_settings` tool reads/writes these via `UserSetting::forSender()`; calling it with no fields shows the saved defaults. Beyond filling in a sender's locations, a saved routine powers proactive matching: when a new ride is posted, `Ride::dailyTravellerSuggestion()` nudges the poster with chat members whose saved route and office days line up. Users manage their own defaults conversationally (there is no artisan command); admins can also view them in the dashboard (`App\Http\Controllers\UserSettingsController`).
+Personal defaults: each sender can save their own commute profile in the `user_settings` table (`App\Bots\Yaarpool\Models\UserSetting`, keyed by `sender_jid`) — a `default_from_location`, optional `default_to_location`, `office_start_time` / `office_end_time`, and `office_days` (an array of weekdays, or `["daily"]`, normalized via `UserSetting::normalizeOfficeDays()` — handy for hybrid schedules). The `user_settings` tool reads/writes these via `UserSetting::forSender()`; calling it with no fields shows the saved defaults. Beyond filling in a sender's locations, a saved routine powers proactive matching: when a new ride is posted, `Ride::dailyTravellerSuggestion()` nudges the poster with chat members whose saved route and office days line up. Users manage their own defaults conversationally (there is no artisan command); admins can also view them in the dashboard (`App\Bots\Yaarpool\Http\Controllers\UserSettingsController`).
 
 Datetime convention: the LLM emits `when_text` (verbatim user phrasing, kept for manual verification) plus a parsed `departs_at` (ISO-8601, NOT NULL). The current date is injected into the agent's instructions so relative phrases like "tomorrow" resolve correctly. Schemas use `->format('date-time')`; handlers read via `$request->date('departs_at')` and catch `Carbon\Exceptions\InvalidFormatException` to return a clarifying message.
 
-To add a tool: create the class under `app/Ai/Tools/` and register it in `YaarpoolAgent::tools()` (pass `chatJid` / `senderJid` if it needs scoping). To add a whole new agent: `php artisan make:agent <Name>` and register the FQCN in `config/whatsapp-agent.php`. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify wiring with `wa:status`.
+To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it in `YaarpoolAgent::tools()` (pass `chatJid` / `senderJid` if it needs scoping).
 
 ## Key Commands
 
@@ -49,11 +65,11 @@ To add a tool: create the class under `app/Ai/Tools/` and register it in `Yaarpo
 | Run tests | `php artisan test --compact` |
 | Run a single test | `php artisan test --compact --filter=testName` |
 | Create a test | `php artisan make:test --pest SomeFeatureTest` |
-| Create an agent | `php artisan make:agent <Name>` |
+| Create an agent | `php artisan make:agent <Name>` (scaffolds into `app/Ai/Agents/`; move it into the bot's slice under `app/Bots/<Name>/` and extend `App\Bots\BotAgent`) |
 | Format PHP (required before finalizing) | `vendor/bin/pint --dirty --format agent` |
 | WhatsApp listener daemon | `php artisan wa:listen` (`-vvv` shows scanned messages, `--once` for a single iteration) |
 | WhatsApp status / JID discovery | `php artisan wa:status` / `wa:chats` / `wa:groups` |
-| View/set a group's default origin & destination | `php artisan group:settings [chat] [--from=] [--to=] [--clear]` |
+| View/set a group's default origin & destination (Yaarpool) | `php artisan group:settings [chat] [--from=] [--to=] [--clear]` |
 | Register a dashboard user (no public sign-up) | `php artisan user:register [name] [email]` (prompts for password) |
 | Tail logs | `php artisan pail` |
 

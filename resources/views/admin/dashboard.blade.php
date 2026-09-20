@@ -1,35 +1,37 @@
 <x-admin.layout title="Dashboard">
     <h1 class="font-display text-3xl font-extrabold tracking-tight">Dashboard</h1>
 
-    <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <a href="{{ route('failed-jobs.index') }}" class="block rounded-3xl border border-ink/10 bg-white p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-card-lg">
-            <p class="text-xs font-bold uppercase tracking-wider opacity-60">Failed jobs</p>
-            <p class="mt-2 font-display text-4xl font-extrabold {{ $failedJobsCount > 0 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $failedJobsCount }}</p>
-            <p class="mt-2 text-sm opacity-70">
-                {{ $failedJobsCount === 0 ? 'Queue is healthy — nothing waiting for a retry.' : 'Review and retry from the failed jobs page.' }}
-            </p>
-        </a>
+    <h2 class="mt-8 text-xs font-bold uppercase tracking-wider opacity-60">Queue</h2>
 
-        <div class="rounded-3xl border border-ink/10 bg-white p-6 shadow-card">
-            <p class="text-xs font-bold uppercase tracking-wider opacity-60">Queued jobs</p>
-            <p class="mt-2 font-display text-4xl font-extrabold">{{ $queuedJobsCount }}</p>
-            <p class="mt-2 text-sm opacity-70">Jobs waiting to be processed.</p>
-        </div>
+    <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <x-admin.stat-card
+            label="Failed jobs"
+            :value="$failedJobsCount"
+            route="failed-jobs.index"
+            :value-class="$failedJobsCount > 0 ? 'text-rose-600' : 'text-emerald-600'"
+            :note="$failedJobsCount === 0 ? 'Queue is healthy — nothing waiting for a retry.' : 'Review and retry from the failed jobs page.'" />
 
-        <a href="{{ route('group-settings.index') }}" class="block rounded-3xl border border-ink/10 bg-white p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-card-lg">
-            <p class="text-xs font-bold uppercase tracking-wider opacity-60">Group settings</p>
-            <p class="mt-2 font-display text-4xl font-extrabold">{{ $groupSettingsCount }}</p>
-            <p class="mt-2 text-sm opacity-70">
-                {{ $groupSettingsCount === 0 ? 'No chats have default locations yet — add one from the group settings page.' : Str::ucfirst(Str::plural('chat', $groupSettingsCount)).' with default ride locations configured.' }}
-            </p>
-        </a>
-
-        <a href="{{ route('user-settings.index') }}" class="block rounded-3xl border border-ink/10 bg-white p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-card-lg">
-            <p class="text-xs font-bold uppercase tracking-wider opacity-60">User settings</p>
-            <p class="mt-2 font-display text-4xl font-extrabold">{{ $userSettingsCount }}</p>
-            <p class="mt-2 text-sm opacity-70">
-                {{ $userSettingsCount === 0 ? 'No users have personal defaults yet — they can save them over WhatsApp.' : Str::ucfirst(Str::plural('user', $userSettingsCount)).' with personal ride defaults configured.' }}
-            </p>
-        </a>
+        <x-admin.stat-card
+            label="Queued jobs"
+            :value="$queuedJobsCount"
+            note="Jobs waiting to be processed." />
     </div>
+
+    @forelse ($botSections as $section)
+        <h2 class="mt-10 text-xs font-bold uppercase tracking-wider opacity-60">{{ $section['name'] }}</h2>
+
+        <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            @foreach ($section['cards'] as $card)
+                <x-admin.stat-card
+                    :label="$card['label']"
+                    :value="$card['value']"
+                    :route="$card['route']"
+                    :note="$card['note']" />
+            @endforeach
+        </div>
+    @empty
+        <p class="mt-10 rounded-3xl border border-dashed border-ink/20 px-6 py-8 text-center text-sm opacity-70">
+            No bots are registered yet. Add one to <code class="font-mono">config/bots.php</code>.
+        </p>
+    @endforelse
 </x-admin.layout>

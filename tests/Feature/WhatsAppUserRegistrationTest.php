@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Ai\Agents\YaarpoolAgent;
+use App\Bots\Yaarpool\YaarpoolAgent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
