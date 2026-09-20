@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Bots;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Resolves the bot manifests listed in `config/bots.php`.
@@ -37,5 +38,21 @@ class BotRegistry
     public function find(string $key): ?Bot
     {
         return $this->all()->first(fn (Bot $bot): bool => $bot->key() === $key);
+    }
+
+    /**
+     * The bot that owns the given hostname, or null when no bot claims it.
+     *
+     * A bot's domain is its own front door: "/" there opens that bot's
+     * landing page instead of the hub's roster. A leading "www." matches the
+     * bare domain, since both usually point at the same place.
+     */
+    public function forDomain(string $host): ?Bot
+    {
+        $host = Str::of($host)->lower()->chopStart('www.')->value();
+
+        $key = array_search($host, (array) config('bots.domains', []), true);
+
+        return $key === false ? null : $this->find((string) $key);
     }
 }

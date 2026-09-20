@@ -25,6 +25,29 @@ test('the hub carries the house brand and logo', function () {
     $response->assertSee('/logo.svg', false);
 });
 
+test("a bot's own domain opens that bot's landing page instead of the hub", function () {
+    config(['bots.domains' => ['yaarpool' => 'rideshare.ing']]);
+
+    $this->get('http://rideshare.ing/')->assertRedirect('http://rideshare.ing/yaarpool');
+    $this->get('http://www.rideshare.ing/')->assertRedirect('http://www.rideshare.ing/yaarpool');
+});
+
+test('a host no bot claims still gets the hub', function () {
+    config(['bots.domains' => ['yaarpool' => 'rideshare.ing']]);
+
+    $this->get('http://bots.example.test/')
+        ->assertOk()
+        ->assertSee('Many bots.');
+});
+
+test('the hub is served on every host when no bot claims a domain', function () {
+    config(['bots.domains' => []]);
+
+    $this->get('http://rideshare.ing/')
+        ->assertOk()
+        ->assertSee('Many bots.');
+});
+
 test('the hub offers a WhatsApp invite link when the number is configured', function () {
     config(['whatsapp-agent.number' => '15551234567']);
 

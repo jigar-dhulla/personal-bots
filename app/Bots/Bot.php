@@ -26,6 +26,7 @@ interface Bot
      * - env keys:      <KEY>_TRIGGERS / _CHATS / _GROUPS, upper-cased
      * - route file:    routes/bots/<key>.php, loaded when it exists
      * - landing page:  the `<key>.home` route, linked from the hub when defined
+     * - own domain:    <KEY>_DOMAIN, whose "/" opens that landing page
      * - URLs:          /<key> and /admin/<key>/…
      * - views:         resources/views/<key>/…
      */

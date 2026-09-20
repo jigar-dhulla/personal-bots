@@ -33,6 +33,17 @@ it('finds a bot by key and returns null for an unknown one', function () {
         ->and($registry->find('nope'))->toBeNull();
 });
 
+it('finds the bot that owns a hostname, ignoring case and a leading www', function () {
+    config(['bots.domains' => ['yaarpool' => 'rideshare.ing']]);
+
+    $registry = app(BotRegistry::class);
+
+    expect($registry->forDomain('rideshare.ing'))->toBeInstanceOf(YaarpoolBot::class)
+        ->and($registry->forDomain('WWW.Rideshare.ING'))->toBeInstanceOf(YaarpoolBot::class)
+        ->and($registry->forDomain('bots.jigardhulla.dev'))->toBeNull()
+        ->and($registry->forDomain('myrideshare.ing'))->toBeNull();
+});
+
 it('lists every registered bot on the public hub', function () {
     withExtraBot();
 

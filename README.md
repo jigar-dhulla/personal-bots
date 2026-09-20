@@ -29,7 +29,7 @@ WhatsApp transport is handled by [`jigar-dhulla/laravel-whatsapp-ai-agent`](http
    - `Models/`, `Enums/`, `Http/Controllers/`, `Console/` as needed. Models outside `App\Models` need a `#[UseFactory(...)]` attribute to find their factory.
 2. Write a manifest implementing `App\Bots\Bot` — its key, name, tagline, agent class, env prefix, route file, commands, admin nav links and dashboard cards.
 3. Register the manifest class in `config/bots.php`.
-4. Add `<PREFIX>_TRIGGERS`, `<PREFIX>_CHATS`, `<PREFIX>_GROUPS` to `.env`.
+4. Add `<PREFIX>_TRIGGERS`, `<PREFIX>_CHATS`, `<PREFIX>_GROUPS` to `.env` — plus `<PREFIX>_DOMAIN` if the bot has a hostname of its own, which makes `/` there open its landing page instead of the hub.
 
 That's it — the agent table, public hub entry, routes, admin nav, dashboard cards and artisan commands all follow from the manifest. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify the wiring with `php artisan wa:status`.
 
