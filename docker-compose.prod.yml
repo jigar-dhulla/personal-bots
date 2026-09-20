@@ -38,12 +38,20 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    # One app, two doors: the hub lists every bot, rideshare.ing is Yaarpool's
+    # own front door. Both routers point at the same container; which page you
+    # land on is the app's business, not Traefik's.
     labels:
       - traefik.enable=true
+      - traefik.http.services.yaarpool.loadbalancer.server.port=8080
+      - traefik.http.routers.bots.rule=Host(`${HUB_HOST:-bots.jigardhulla.dev}`)
+      - traefik.http.routers.bots.entrypoints=websecure
+      - traefik.http.routers.bots.tls.certresolver=letsencrypt
+      - traefik.http.routers.bots.service=yaarpool
       - traefik.http.routers.yaarpool.rule=Host(`${WEB_HOST:-rideshare.ing}`) || Host(`www.${WEB_HOST:-rideshare.ing}`)
       - traefik.http.routers.yaarpool.entrypoints=websecure
       - traefik.http.routers.yaarpool.tls.certresolver=letsencrypt
-      - traefik.http.services.yaarpool.loadbalancer.server.port=8080
+      - traefik.http.routers.yaarpool.service=yaarpool
 
   wacli:
     <<: *php
