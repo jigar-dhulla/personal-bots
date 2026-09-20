@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repo hosts a set of personal WhatsApp bots sharing **one phone number**. Inbound messages are read from a local `wacli` SQLite store and dispatched to every bot whose scope (chats + groups) contains the chat JID and whose triggers match the message body.
+**Jigar's Bots** (`jigar-dhulla/personal-bots`) is a set of personal WhatsApp bots sharing **one phone number**. Inbound messages are read from a local `wacli` SQLite store and dispatched to every bot whose scope (chats + groups) contains the chat JID and whose triggers match the message body.
 
 Each bot owns a vertical slice under `app/Bots/<Name>/` — agent, tools, models, enums, controllers, commands — and is registered once in `config/bots.php`. Anything outside `app/Bots/<Name>/` is shared and must stay bot-agnostic.
 

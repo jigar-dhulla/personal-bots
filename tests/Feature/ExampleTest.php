@@ -13,7 +13,16 @@ test('the hub introduces the number and links to each bot', function () {
     $response->assertSee('Many bots.');
     $response->assertSee('Yaarpool');
     $response->assertSee(route('yaarpool.home'), false);
-    $response->assertSee('https://github.com/jigar-dhulla/yaarpool-whatsapp-agent', false);
+    $response->assertSee('https://github.com/jigar-dhulla/personal-bots', false);
+});
+
+test('the hub carries the house brand and logo', function () {
+    config(['app.name' => 'Example Bots']);
+
+    $response = $this->get('/');
+
+    $response->assertSee('Example Bots');
+    $response->assertSee('/logo.svg', false);
 });
 
 test('the hub offers a WhatsApp invite link when the number is configured', function () {

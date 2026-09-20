@@ -5,7 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>{{ config('app.name') }} — one WhatsApp number, many bots</title>
+
         <meta name="description" content="A small collection of WhatsApp bots sharing a single number. Mention the one you need and it answers in the chat.">
+        <link rel="icon" href="/logo.svg" type="image/svg+xml">
 
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -58,7 +60,7 @@
 
             <footer class="mt-auto flex flex-wrap items-center gap-4 pt-16 text-sm opacity-70">
                 <p>Built with Laravel &amp; the Laravel AI SDK.</p>
-                <a href="https://github.com/jigar-dhulla/yaarpool-whatsapp-agent" target="_blank" rel="noopener" class="ml-auto font-bold transition hover:text-emerald-700">
+                <a href="https://github.com/jigar-dhulla/personal-bots" target="_blank" rel="noopener" class="ml-auto font-bold transition hover:text-emerald-700">
                     Source on GitHub
                 </a>
             </footer>

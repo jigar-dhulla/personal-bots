@@ -23,7 +23,7 @@ cd "$(dirname "$(realpath "$0")")"
 # its authenticated session. The SSH login shell already exports HOME=/root.
 export HOME="${HOME:-/root}"
 
-REPO="jigar-dhulla/yaarpool-whatsapp-agent"
+REPO="jigar-dhulla/personal-bots"
 REF="${SSH_ORIGINAL_COMMAND:-main}"
 STATE_FILE=".deployed-digest"
 
