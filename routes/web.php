@@ -5,11 +5,22 @@ use App\Bots\BotRegistry;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\FailedJobsController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn (BotRegistry $bots) => view('welcome', [
-    'bots' => $bots->all(),
-]))->name('home');
+/**
+ * The hub lists every bot — unless this host belongs to one bot, in which
+ * case "/" is that bot's front door and opens its landing page.
+ */
+Route::get('/', function (Request $request, BotRegistry $bots) {
+    $bot = $bots->forDomain($request->getHost());
+
+    if ($bot instanceof Bot && Route::has("{$bot->key()}.home")) {
+        return redirect()->route("{$bot->key()}.home");
+    }
+
+    return view('welcome', ['bots' => $bots->all()]);
+})->name('home');
 
 Route::prefix('admin')->group(function () {
     Route::middleware('guest')->group(function () {
