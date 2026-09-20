@@ -1,4 +1,6 @@
-# WhatsApp Bots
+<img src="public/logo.svg" alt="" width="72" align="right">
+
+# Jigar's Bots
 
 One WhatsApp number, many bots. Inbound messages are pulled from a local `wacli` SQLite store, dispatched to whichever bots are in scope for that chat and matched by the message body, and their replies are sent back to WhatsApp.
 

@@ -13,7 +13,7 @@ test('the yaarpool landing page shows the headline and WhatsApp call to action',
     $response->assertSee('The carpool that lives in your group chat.');
     $response->assertSee('No strangers. Just yaars.');
     $response->assertSee('Add to WhatsApp group');
-    $response->assertSee('https://github.com/jigar-dhulla/yaarpool-whatsapp-agent', false);
+    $response->assertSee('https://github.com/jigar-dhulla/personal-bots', false);
 });
 
 test('the yaarpool landing page links to the usage guide', function () {

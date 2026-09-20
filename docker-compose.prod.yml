@@ -1,7 +1,7 @@
 name: yaarpool
 
 x-php: &php
-  image: ghcr.io/jigar-dhulla/yaarpool-whatsapp-agent:latest
+  image: ghcr.io/jigar-dhulla/personal-bots:latest
   working_dir: /app
   env_file: .env
   environment:

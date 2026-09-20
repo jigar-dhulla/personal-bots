@@ -6,6 +6,7 @@
         <meta name="robots" content="noindex, nofollow">
 
         <title>Log in — {{ config('app.name') }}</title>
+        <link rel="icon" href="/logo.svg" type="image/svg+xml">
 
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
