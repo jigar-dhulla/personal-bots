@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG WACLI_VERSION=0.11.0
+ARG WACLI_VERSION=0.18.3
 
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS wacli-fetch
 ARG TARGETOS
@@ -10,7 +10,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && curl -fsSL \
         "https://github.com/openclaw/wacli/releases/download/v${WACLI_VERSION}/wacli_${WACLI_VERSION}_${TARGETOS}_${TARGETARCH}.tar.gz" \
-        | tar -xz -C /tmp wacli \
+        | tar -xz -C /tmp --wildcards '*wacli' \
     && chmod +x /tmp/wacli
 
 FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS assets
