@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Bots\Bot;
+use App\Bots\Instamart\InstamartBot;
 use App\Bots\Yaarpool\YaarpoolBot;
 
 $registered = [
     YaarpoolBot::class,
+    InstamartBot::class,
 ];
 
 return [
