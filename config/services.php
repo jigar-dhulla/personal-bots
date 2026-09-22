@@ -28,6 +28,17 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    | Swiggy MCP (Instamart bot). OAuth 2.1 + PKCE against `auth_url`; the
+    | redirect URI must be http://localhost (dev) or an HTTPS URI allowlisted
+    | by builders@swiggy.in. See https://mcp.swiggy.com/builders/docs/start/authenticate
+    */
+    'swiggy' => [
+        'instamart_url' => env('SWIGGY_INSTAMART_URL', 'https://mcp.swiggy.com/im'),
+        'auth_url' => env('SWIGGY_AUTH_URL', 'https://mcp.swiggy.com'),
+        'redirect_uri' => env('SWIGGY_REDIRECT_URI', 'http://localhost:8765/callback'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

@@ -23,7 +23,7 @@ it('resolves every bot registered in config', function () {
 
     $keys = app(BotRegistry::class)->all()->map(fn ($bot) => $bot->key())->all();
 
-    expect($keys)->toBe(['yaarpool', 'echo']);
+    expect($keys)->toBe(['yaarpool', 'instamart', 'echo']);
 });
 
 it('finds a bot by key and returns null for an unknown one', function () {

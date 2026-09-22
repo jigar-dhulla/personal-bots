@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Each bot owns a vertical slice under `app/Bots/<Name>/` — agent, tools, models, enums, controllers, commands — and is registered once in `config/bots.php`. Anything outside `app/Bots/<Name>/` is shared and must stay bot-agnostic.
 
-**Yaarpool** (`app/Bots/Yaarpool/`) is the ridesharing bot and currently the only one. Do not add bot-specific code to shared namespaces (`App\Models`, `App\Http\Controllers`, `App\Enums`, top-level views) — put it in the bot's slice.
+**Yaarpool** (`app/Bots/Yaarpool/`) is the ridesharing bot; **Instamart** (`app/Bots/Instamart/`) is the grocery bot. Do not add bot-specific code to shared namespaces (`App\Models`, `App\Http\Controllers`, `App\Enums`, top-level views) — put it in the bot's slice.
 
 WhatsApp transport is provided by the `jigar-dhulla/laravel-whatsapp-ai-agent` package. Never edit the vendor source — instead, treat the package as a contract that must support:
 
@@ -57,6 +57,14 @@ Datetime convention: the LLM emits `when_text` (verbatim user phrasing, kept for
 
 To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it in `YaarpoolAgent::tools()` (pass `chatJid` / `senderJid` if it needs scoping).
 
+## Instamart
+
+- `App\Bots\Instamart\InstamartAgent` shops on Swiggy Instamart for **one owner account**. Swiggy docs (the authority for tool names/params/errors): https://mcp.swiggy.com/builders/llms.txt — never invent tool names or parameters.
+- `Swiggy\InstamartClient` is a minimal MCP client (JSON-RPC over streamable HTTP to `services.swiggy.instamart_url`): caches one MCP session per login, retries transient 5xx for safe tools, unwraps the `{success, data, message}` envelope into `SwiggyException` kinds. `checkout` is called with `retryable: false` — it is not idempotent.
+- Auth is OAuth 2.1 + PKCE with no refresh tokens (5-day access token). `php artisan instamart:login` does DCR + a paste-the-redirect-URL flow against `SWIGGY_REDIRECT_URI` (http://localhost for dev; HTTPS URIs must be allowlisted by builders@swiggy.in). Token lives encrypted in `instamart_connections`; a 401 expires it.
+- WhatsApp history only has the bot's replies, so numbered search results ("add 2 of number 3") are cached per chat and the chat's delivery address is stored in `instamart_chat_addresses`.
+- `order_place` is two-step: a summary prompt, then `confirm: true` from a *later* message by the same sender against an unchanged amount. UPI orders reply with Swiggy's `bridgeUrl` and `Jobs\ConfirmUpiPayment` polls `check_payment_status` (re-dispatching itself) and calls `confirm_order`.
+
 ## Key Commands
 
 | Task | Command |
@@ -71,6 +79,7 @@ To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it
 | WhatsApp status / JID discovery | `php artisan wa:status` / `wa:chats` / `wa:groups` |
 | View/set a group's default origin & destination (Yaarpool) | `php artisan group:settings [chat] [--from=] [--to=] [--clear]` |
 | Register a dashboard user (no public sign-up) | `php artisan user:register [name] [email]` (prompts for password) |
+| Log the Instamart bot into Swiggy / check / revoke | `php artisan instamart:login` / `instamart:login --status` / `instamart:logout` |
 | Tail logs | `php artisan pail` |
 
 ## Datastores
