@@ -29,7 +29,7 @@ class InstamartBot implements Bot
 
     public function tagline(): string
     {
-        return 'Grocery runs from your chat. Search Swiggy Instamart, check stock, fill a cart and order in plain language.';
+        return '[Private] Grocery runs from your chat. Search Swiggy Instamart, check stock, fill a cart and order in plain language.';
     }
 
     public function agent(): string
