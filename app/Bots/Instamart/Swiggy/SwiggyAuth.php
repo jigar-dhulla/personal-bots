@@ -44,6 +44,40 @@ class SwiggyAuth
         return $clientId;
     }
 
+    /**
+     * The OAuth client to log in with. Swiggy ties a client to the redirect
+     * URIs it registered with, so the saved one is reused only when it was
+     * registered for this redirect; otherwise a new client is registered.
+     *
+     * @throws RuntimeException
+     */
+    public function clientIdFor(string $redirectUri): string
+    {
+        $current = Connection::current();
+
+        return $current !== null && $current->redirect_uri === $redirectUri
+            ? $current->client_id
+            : $this->register($redirectUri);
+    }
+
+    /**
+     * The redirect URI Swiggy sends the browser back to after login.
+     */
+    public static function redirectUri(): string
+    {
+        return (string) config('services.swiggy.redirect_uri');
+    }
+
+    /**
+     * Whether logins can finish in the browser at `/instamart/callback`.
+     * Only an HTTPS redirect can reach this app; Swiggy allows plain
+     * http://localhost, which the `instamart:login` paste flow uses.
+     */
+    public static function usesWebCallback(): bool
+    {
+        return str_starts_with(self::redirectUri(), 'https://');
+    }
+
     public function authorizationUrl(string $clientId, string $redirectUri, string $codeChallenge, string $state): string
     {
         return $this->url('/auth/authorize').'?'.http_build_query([

@@ -30,8 +30,10 @@ return [
 
     /*
     | Swiggy MCP (Instamart bot). OAuth 2.1 + PKCE against `auth_url`; the
-    | redirect URI must be http://localhost (dev) or an HTTPS URI allowlisted
-    | by builders@swiggy.in. See https://mcp.swiggy.com/builders/docs/start/authenticate
+    | redirect URI must be http://localhost (dev; `instamart:login` paste flow)
+    | or an HTTPS URI allowlisted by builders@swiggy.in, pointing at this app's
+    | /instamart/callback (dashboard login). See
+    | https://mcp.swiggy.com/builders/docs/start/authenticate
     */
     'swiggy' => [
         'instamart_url' => env('SWIGGY_INSTAMART_URL', 'https://mcp.swiggy.com/im'),

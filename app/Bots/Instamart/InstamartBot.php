@@ -11,6 +11,7 @@ use App\Bots\Instamart\Console\LogoutCommand;
 use App\Bots\Instamart\Enums\OrderStatus;
 use App\Bots\Instamart\Models\Connection;
 use App\Bots\Instamart\Models\Order;
+use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -50,7 +51,13 @@ class InstamartBot implements Bot
      */
     public function adminLinks(): array
     {
-        return [];
+        if (! SwiggyAuth::usesWebCallback()) {
+            return [];
+        }
+
+        return [
+            ['label' => 'Swiggy login', 'route' => 'instamart.login', 'pattern' => 'instamart.login'],
+        ];
     }
 
     /**
@@ -67,7 +74,9 @@ class InstamartBot implements Bot
                 'value' => $connection === null ? 0 : (int) Carbon::now()->diffInDays($connection->expires_at),
                 'route' => null,
                 'note' => $connection === null
-                    ? 'Not logged in or expired. Run `php artisan instamart:login`.'
+                    ? (SwiggyAuth::usesWebCallback()
+                        ? 'Not logged in or expired. Use "Swiggy login" in the nav.'
+                        : 'Not logged in or expired. Run `php artisan instamart:login`.')
                     : 'Days until the token expires ('.$connection->expires_at->toDayDateTimeString().').',
             ],
             [
