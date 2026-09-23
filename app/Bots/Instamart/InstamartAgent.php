@@ -28,7 +28,7 @@ class InstamartAgent extends BotAgent
         Read each message, detect intent, and call the matching tool:
 
         - Call `product_search` when the user wants to find a product, check whether something is available or in stock, or compare prices — e.g. "find amul butter", "is there brown bread?", "how much are eggs?". Pass their words as `query`. One search per product they mention.
-        - Call `cart_add` when the user wants items from the latest search results — e.g. "add 2 of number 3", "add the first one". Pass each item's number and quantity. If they name a product that has not been searched yet, call `product_search` first and let them pick; never guess a number.
+        - Call `cart_add` when the user wants items from the latest search results — e.g. "add 2 of number 3", "add the first one". Pass one item's number and quantity per call; call it once for each item when they want several. If they name a product that has not been searched yet, call `product_search` first and let them pick; never guess a number.
         - Call `cart_view` when they ask what is in the cart or what it costs.
         - Call `cart_change` to change a quantity or remove an item already in the cart, by its line number from the cart ("remove line 2", "make the milk 3"). Quantity 0 removes it.
         - Call `cart_clear` only when they explicitly ask to empty or start over the cart.

@@ -17,29 +17,34 @@ class CartAddTool extends InstamartTool
 
     public function description(): Stringable|string
     {
-        return 'Add items from the most recent `product_search` results to the Instamart cart, by the numbers shown in those results. Adding an item already in the cart increases its quantity.';
+        return 'Add one item from the most recent `product_search` results to the Instamart cart, by the number shown in those results. Call it once per item when the user wants several. Adding an item already in the cart increases its quantity.';
     }
 
+    /**
+     * Kept flat on purpose: laravel/ai marks nested objects with
+     * `additionalProperties`, which Gemini rejects for the whole request.
+     */
     public function schema(JsonSchema $schema): array
     {
         return [
-            'items' => $schema->array()
-                ->description('The items to add, by their number in the latest search results.')
-                ->items($schema->object([
-                    'item_number' => $schema->integer()->description('The number shown next to the item in the search results.')->min(1)->required(),
-                    'quantity' => $schema->integer()->description('How many to add. Defaults to 1.')->min(1)->max(20),
-                ]))
+            'item_number' => $schema->integer()
+                ->description('The number shown next to the item in the latest search results.')
                 ->min(1)
                 ->required(),
+            'quantity' => $schema->integer()
+                ->description('How many to add. Defaults to 1.')
+                ->min(1)
+                ->max(20),
         ];
     }
 
     protected function respond(Request $request): string
     {
-        $wanted = array_values(array_filter((array) ($request['items'] ?? []), 'is_array'));
+        $number = (int) ($request['item_number'] ?? 0);
+        $quantity = max(1, (int) ($request['quantity'] ?? 1));
 
-        if ($wanted === []) {
-            return 'Which items should I add? Give me their numbers from the search results.';
+        if ($number < 1) {
+            return 'Which item should I add? Give me its number from the search results.';
         }
 
         $picks = $this->picks();
@@ -48,53 +53,31 @@ class CartAddTool extends InstamartTool
             return 'I have no recent search results for this chat. Tell me what to look for first.';
         }
 
+        $pick = $picks[$number] ?? null;
+
+        if ($pick === null) {
+            return sprintf('There is no item #%d in the last search.', $number);
+        }
+
+        if (! $pick['inStock']) {
+            return sprintf('%s is out of stock.', $pick['name']);
+        }
+
         $address = $this->address();
 
         if (is_string($address)) {
             return $address;
         }
 
-        $additions = [];
-        $problems = [];
-
-        foreach ($wanted as $item) {
-            $number = (int) ($item['item_number'] ?? 0);
-            $quantity = max(1, (int) ($item['quantity'] ?? 1));
-            $pick = $picks[$number] ?? null;
-
-            if ($pick === null) {
-                $problems[] = sprintf('There is no item #%d in the last search.', $number);
-
-                continue;
-            }
-
-            if (! $pick['inStock']) {
-                $problems[] = sprintf('%s is out of stock.', $pick['name']);
-
-                continue;
-            }
-
-            $additions[] = ['spinId' => $pick['spinId'], 'skuId' => $pick['skuId'], 'quantity' => $quantity];
-        }
-
-        if ($additions === []) {
-            return implode("\n", $problems);
-        }
-
         $lines = $this->cartLines($this->cart());
+        $existing = array_search($pick['spinId'], array_column($lines, 'spinId'), true);
 
-        foreach ($additions as $addition) {
-            $existing = array_search($addition['spinId'], array_column($lines, 'spinId'), true);
-
-            if ($existing === false) {
-                $lines[] = $addition;
-            } else {
-                $lines[$existing]['quantity'] += $addition['quantity'];
-            }
+        if ($existing === false) {
+            $lines[] = ['spinId' => $pick['spinId'], 'skuId' => $pick['skuId'], 'quantity' => $quantity];
+        } else {
+            $lines[$existing]['quantity'] += $quantity;
         }
 
-        $cart = $this->replaceCart($address, $lines);
-
-        return implode("\n", [...$problems, "Cart updated:\n".$this->describeCart($cart)]);
+        return "Cart updated:\n".$this->describeCart($this->replaceCart($address, $lines));
     }
 }
