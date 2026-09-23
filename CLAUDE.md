@@ -63,7 +63,8 @@ To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it
 - `Swiggy\InstamartClient` is a minimal MCP client (JSON-RPC over streamable HTTP to `services.swiggy.instamart_url`): caches one MCP session per login, retries transient 5xx for safe tools, unwraps the `{success, data, message}` envelope into `SwiggyException` kinds. `checkout` is called with `retryable: false` — it is not idempotent.
 - Auth is OAuth 2.1 + PKCE with no refresh tokens (5-day access token). `php artisan instamart:login` does DCR + a paste-the-redirect-URL flow against `SWIGGY_REDIRECT_URI` (http://localhost for dev; HTTPS URIs must be allowlisted by builders@swiggy.in). Token lives encrypted in `instamart_connections`; a 401 expires it.
 - WhatsApp history only has the bot's replies, so numbered search results ("add 2 of number 3") are cached per chat and the chat's delivery address is stored in `instamart_chat_addresses`.
-- `order_place` is two-step: a summary prompt, then `confirm: true` from a *later* message by the same sender against an unchanged amount. UPI orders reply with Swiggy's `bridgeUrl` and `Jobs\ConfirmUpiPayment` polls `check_payment_status` (re-dispatching itself) and calls `confirm_order`.
+- Every MCP call is logged as `swiggy.mcp.call` (tool, JSON-RPC `request_id`, session id, arguments, status, latency — never the token); failures as `swiggy.mcp.failed`, `_meta.swiggy.deprecation` notices as `swiggy.mcp.deprecation`. Quote the `request_id` and timestamp when escalating to builders@swiggy.in.
+- `order_place` is two-step: a summary prompt, then `confirm: true` from a *later* message by the same sender against an unchanged amount. UPI orders reply with Swiggy's `bridgeUrl` and `Jobs\ConfirmUpiPayment` polls `check_payment_status` (re-dispatching itself) and calls `confirm_order`. A checkout that fails upstream is never retried: the tool snapshots `get_orders` before checkout and diffs it 3s after the failure to tell whether the order was placed.
 
 ## Key Commands
 
@@ -80,6 +81,7 @@ To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it
 | View/set a group's default origin & destination (Yaarpool) | `php artisan group:settings [chat] [--from=] [--to=] [--clear]` |
 | Register a dashboard user (no public sign-up) | `php artisan user:register [name] [email]` (prompts for password) |
 | Log the Instamart bot into Swiggy / check / revoke | `php artisan instamart:login` / `instamart:login --status` / `instamart:logout` |
+| Delete Instamart chat data (addresses, order records, caches) | `php artisan instamart:forget [--chat=] [--force]` |
 | Tail logs | `php artisan pail` |
 
 ## Datastores

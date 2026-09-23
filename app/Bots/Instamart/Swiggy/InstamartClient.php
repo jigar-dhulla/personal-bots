@@ -9,6 +9,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
@@ -58,6 +59,13 @@ class InstamartClient
                 return $this->callOnce($connection, $tool, $arguments);
             } catch (SwiggyException $exception) {
                 if (! $retryable || ! $exception->isTransient() || $attempt >= count(self::RETRY_DELAYS_MS)) {
+                    Log::warning('swiggy.mcp.failed', [
+                        'tool' => $tool,
+                        'kind' => $exception->kind,
+                        'message' => $exception->getMessage(),
+                        'attempts' => $attempt + 1,
+                    ]);
+
                     throw $exception;
                 }
 
@@ -88,7 +96,29 @@ class InstamartClient
             return $this->callOnce($connection, $tool, $arguments, freshSession: true);
         }
 
-        return $this->unwrap($this->rpcMessage($connection, $response));
+        $message = $this->rpcMessage($connection, $response);
+
+        $this->reportDeprecation($tool, $message);
+
+        return $this->unwrap($message);
+    }
+
+    /**
+     * Swiggy announces tool and parameter deprecations in
+     * `_meta.swiggy.deprecation`; surface them in the logs well before the
+     * removal date.
+     *
+     * @param  array<string, mixed>  $message
+     */
+    private function reportDeprecation(string $tool, array $message): void
+    {
+        $deprecation = $message['result']['_meta']['swiggy']['deprecation']
+            ?? $message['_meta']['swiggy']['deprecation']
+            ?? null;
+
+        if (filled($deprecation)) {
+            Log::warning('swiggy.mcp.deprecation', ['tool' => $tool, 'deprecation' => $deprecation]);
+        }
     }
 
     /**
@@ -143,15 +173,54 @@ class InstamartClient
             $headers['Mcp-Session-Id'] = $sessionId;
         }
 
+        $startedAt = hrtime(true);
+
         try {
-            return Http::withToken($connection->access_token)
+            $response = Http::withToken($connection->access_token)
                 ->accept('application/json, text/event-stream')
                 ->withHeaders($headers)
                 ->timeout(60)
                 ->post((string) config('services.swiggy.instamart_url'), $payload);
         } catch (ConnectionException $exception) {
+            Log::warning('swiggy.mcp.call', $this->callContext($payload, $sessionId, $startedAt) + [
+                'status' => null,
+                'error' => $exception->getMessage(),
+            ]);
+
             throw SwiggyException::transient($exception->getMessage());
         }
+
+        $context = $this->callContext($payload, $sessionId, $startedAt) + [
+            'status' => $response->status(),
+            'response_session_id' => $response->header('Mcp-Session-Id') ?: null,
+            'rate_limit_remaining' => $response->header('X-RateLimit-Remaining') ?: null,
+        ];
+
+        $response->successful()
+            ? Log::info('swiggy.mcp.call', $context)
+            : Log::warning('swiggy.mcp.call', $context + ['body' => Str::limit($response->body(), 500)]);
+
+        return $response;
+    }
+
+    /**
+     * What Swiggy asks for when a call is escalated: which tool, when, which
+     * session and request id, and with what arguments. Never the token.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function callContext(array $payload, string $sessionId, int|float $startedAt): array
+    {
+        return [
+            'method' => $payload['method'] ?? null,
+            'tool' => $payload['params']['name'] ?? null,
+            'request_id' => $payload['id'] ?? null,
+            'session_id' => $sessionId !== '' ? $sessionId : null,
+            'arguments' => (array) ($payload['params']['arguments'] ?? []),
+            'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
+            'at' => now()->toIso8601String(),
+        ];
     }
 
     /**

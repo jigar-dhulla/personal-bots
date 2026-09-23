@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Bots\Instamart;
 
 use App\Bots\Bot;
+use App\Bots\Instamart\Console\ForgetCommand;
 use App\Bots\Instamart\Console\LoginCommand;
 use App\Bots\Instamart\Console\LogoutCommand;
 use App\Bots\Instamart\Enums\OrderStatus;
@@ -41,7 +42,7 @@ class InstamartBot implements Bot
      */
     public function commands(): array
     {
-        return [LoginCommand::class, LogoutCommand::class];
+        return [LoginCommand::class, LogoutCommand::class, ForgetCommand::class];
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Bots\Instamart\Tools\OrderPlaceTool;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Sleep;
 use Laravel\Ai\Tools\Request;
 
 uses(RefreshDatabase::class);
@@ -139,8 +140,49 @@ it('sends a UPI payment link and follows the payment up in the background', func
     Queue::assertPushed(ConfirmUpiPayment::class, fn (ConfirmUpiPayment $job) => $job->order->order_id === '888' && $job->intervalMs === 3000);
 });
 
-it('does not retry a checkout that failed upstream', function () {
-    fakeCheckoutReadyCart(overrides: ['checkout' => fn () => Http::response('', 503)]);
+it('does not retry a failed checkout and reports it was not placed when no new order appears', function () {
+    Sleep::fake();
+    fakeCheckoutReadyCart(overrides: [
+        'checkout' => fn () => Http::response('', 503),
+        'get_orders' => ['orders' => [['orderId' => '100']]],
+    ]);
+
+    orderTool()->handle(new Request(['payment_method' => 'cash']));
+    $reply = (string) orderTool()->handle(new Request(['confirm' => true]));
+
+    expect(instamartCalls('checkout'))->toHaveCount(1)
+        ->and(instamartCalls('get_orders'))->toHaveCount(2);
+    expect($reply)->toContain('the order was not placed');
+    expect(Order::query()->count())->toBe(0);
+    Sleep::assertSlept(fn ($duration) => $duration->totalSeconds === 3.0, 1);
+});
+
+it('records the order when a failed checkout went through after all', function () {
+    Sleep::fake();
+    $orderLists = [['orders' => [['orderId' => '100']]], ['orders' => [['orderId' => '101'], ['orderId' => '100']]]];
+    fakeCheckoutReadyCart(overrides: [
+        'checkout' => fn () => Http::response('', 504),
+        'get_orders' => function () use (&$orderLists) {
+            return array_shift($orderLists);
+        },
+    ]);
+
+    orderTool()->handle(new Request(['payment_method' => 'cash']));
+    $reply = (string) orderTool()->handle(new Request(['confirm' => true]));
+
+    expect(instamartCalls('checkout'))->toHaveCount(1);
+    expect($reply)->toContain('order #101 was placed');
+    expect(Order::query()->sole())
+        ->order_id->toBe('101')
+        ->status->toBe(OrderStatus::Placed);
+});
+
+it('stays unsure when the order list cannot be read after a failed checkout', function () {
+    Sleep::fake();
+    fakeCheckoutReadyCart(overrides: [
+        'checkout' => fn () => Http::response('', 503),
+        'get_orders' => fn () => Http::response('', 400),
+    ]);
 
     orderTool()->handle(new Request(['payment_method' => 'cash']));
     $reply = (string) orderTool()->handle(new Request(['confirm' => true]));
