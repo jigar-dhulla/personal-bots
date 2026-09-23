@@ -92,32 +92,15 @@ class ProductSearchTool extends InstamartTool
     private function addProduct(array $product, int $maxVariants, array &$picks, array &$lines): void
     {
         foreach (array_slice((array) ($product['variations'] ?? []), 0, $maxVariants) as $variation) {
-            if (blank($variation['spinId'] ?? null) || blank($variation['skuId'] ?? null)) {
+            $pick = $this->pickFromVariation($product, $variation);
+
+            if ($pick === null) {
                 continue;
             }
 
             $number = count($picks) + 1;
-            $inStock = (bool) ($variation['isInStockAndAvailable'] ?? false);
-            $name = trim(($variation['displayName'] ?? $product['displayName'] ?? 'Item').' '.($variation['quantityDescription'] ?? ''));
-            $offer = $variation['price']['offerPrice'] ?? null;
-            $mrp = $variation['price']['mrp'] ?? null;
-
-            $picks[$number] = [
-                'spinId' => (string) $variation['spinId'],
-                'skuId' => (string) $variation['skuId'],
-                'name' => $name,
-                'inStock' => $inStock,
-                'maxQuantity' => isset($variation['maxQuantity']) ? (int) $variation['maxQuantity'] : null,
-            ];
-
-            $lines[] = sprintf(
-                '%d. %s — %s%s %s',
-                $number,
-                $name,
-                $this->money($offer ?? $mrp),
-                $mrp !== null && $offer !== null && $mrp > $offer ? ' (MRP '.$this->money($mrp).')' : '',
-                $inStock ? '✅' : '❌ out of stock',
-            );
+            $picks[$number] = $pick;
+            $lines[] = $this->describePick($number, $pick);
         }
     }
 }

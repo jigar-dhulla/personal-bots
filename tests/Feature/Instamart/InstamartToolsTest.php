@@ -75,7 +75,7 @@ it('adds a searched item on top of what is already in the cart', function () {
     ]);
 
     instamartTool(ProductSearchTool::class)->handle(new Request(['query' => 'milk']));
-    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_number' => 1, 'quantity' => 2]));
+    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_numbers' => [1], 'quantity' => 2]));
 
     expect(instamartCalls('update_cart')[0])->toBe([
         'selectedAddressId' => 'a1',
@@ -92,7 +92,7 @@ it('refuses to add an out-of-stock variation', function () {
     fakeInstamart(['search_products' => milkSearch()]);
 
     instamartTool(ProductSearchTool::class)->handle(new Request(['query' => 'milk']));
-    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_number' => 2]));
+    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_numbers' => [2]]));
 
     expect($reply)->toContain('out of stock');
     expect(instamartCalls('update_cart'))->toBeEmpty();
@@ -101,7 +101,7 @@ it('refuses to add an out-of-stock variation', function () {
 it('asks for a search before adding when there are no results to pick from', function () {
     fakeInstamart();
 
-    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_number' => 1]));
+    $reply = (string) instamartTool(CartAddTool::class)->handle(new Request(['item_numbers' => [1]]));
 
     expect($reply)->toContain('no recent search results');
 });

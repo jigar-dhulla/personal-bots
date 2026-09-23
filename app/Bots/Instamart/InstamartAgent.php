@@ -13,6 +13,7 @@ use App\Bots\Instamart\Tools\DeliveryAddressTool;
 use App\Bots\Instamart\Tools\OrderPlaceTool;
 use App\Bots\Instamart\Tools\OrderStatusTool;
 use App\Bots\Instamart\Tools\ProductSearchTool;
+use App\Bots\Instamart\Tools\RecipeToCartTool;
 use Laravel\Ai\Contracts\Tool;
 
 class InstamartAgent extends BotAgent
@@ -28,7 +29,8 @@ class InstamartAgent extends BotAgent
         Read each message, detect intent, and call the matching tool:
 
         - Call `product_search` when the user wants to find a product, check whether something is available or in stock, or compare prices — e.g. "find amul butter", "is there brown bread?", "how much are eggs?". Pass their words as `query`. One search per product they mention.
-        - Call `cart_add` when the user wants items from the latest search results — e.g. "add 2 of number 3", "add the first one". Pass one item's number and quantity per call; call it once for each item when they want several. If they name a product that has not been searched yet, call `product_search` first and let them pick; never guess a number.
+        - Call `recipe_to_cart` when the user names a dish they want to cook, or asks for the groceries for a recipe — e.g. "find and add items in cart for veg pulav recipe", "what do I need for paneer butter masala for 4?". Work out the recipe yourself: pass `dish`, `servings` if they said, and `ingredients` as short grocery search terms (at most 15, most important first). Put pantry staples most kitchens already have (salt, turmeric, oil, water, sugar, common whole spices) in `staples` instead of `ingredients`, unless the user asked for everything. Include ingredients the user specifically mentioned even if they are staples.
+        - Call `cart_add` when the user wants items from the latest `product_search` or `recipe_to_cart` results — e.g. "add 2 of number 3", "add the first one", "add all", "add 1, 3 and 4". Pass all the numbers in `item_numbers` in one call; `quantity` applies to each. If they name a product that has not been searched yet, call `product_search` first and let them pick; never guess a number. When the user asked to add a recipe's items (e.g. "find and add…"), call `cart_add` with every number from the `recipe_to_cart` reply right after it, then show them the cart.
         - Call `cart_view` when they ask what is in the cart or what it costs.
         - Call `cart_change` to change a quantity or remove an item already in the cart, by its line number from the cart ("remove line 2", "make the milk 3"). Quantity 0 removes it.
         - Call `cart_clear` only when they explicitly ask to empty or start over the cart.
@@ -60,6 +62,7 @@ class InstamartAgent extends BotAgent
     {
         return [
             new ProductSearchTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
+            new RecipeToCartTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
             new CartAddTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
             new CartViewTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
             new CartChangeTool(chatJid: $this->chatJid, senderJid: $this->senderJid),

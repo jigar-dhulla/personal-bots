@@ -17,7 +17,7 @@ it('registers and describes every tool', function () {
     $instructions = (string) (new InstamartAgent)->instructions();
 
     expect($names)->toEqualCanonicalizing([
-        'product_search', 'cart_add', 'cart_view', 'cart_change', 'cart_clear',
+        'product_search', 'recipe_to_cart', 'cart_add', 'cart_view', 'cart_change', 'cart_clear',
         'delivery_address', 'order_place', 'order_status',
     ]);
 
