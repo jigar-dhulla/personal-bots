@@ -8,6 +8,7 @@ use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 
 uses(RefreshDatabase::class);
@@ -125,4 +126,47 @@ it('treats an error result without an envelope as a domain failure', function ()
 
     expect(fn () => app(InstamartClient::class)->call('search_products', ['addressId' => 'x', 'query' => 'milk']))
         ->toThrow(SwiggyException::class, 'Invalid addressId');
+});
+
+it('logs every call with the ids Swiggy asks for, never the token', function () {
+    Log::spy();
+    Connection::factory()->create(['access_token' => 'secret-token']);
+    fakeInstamart(['get_cart' => ['items' => []]]);
+
+    app(InstamartClient::class)->call('get_cart');
+
+    Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context) => $message === 'swiggy.mcp.call'
+        && $context['tool'] === 'get_cart'
+        && $context['status'] === 200
+        && $context['session_id'] === 'session-1'
+        && filled($context['request_id'])
+        && is_int($context['duration_ms'])
+        && ! str_contains(json_encode($context), 'secret-token'))->once();
+});
+
+it('logs a failed call with its kind', function () {
+    Log::spy();
+    Connection::factory()->create();
+    fakeInstamart(['get_cart' => fn () => Http::response(['error' => ['message' => 'Missing addressId']], 400)]);
+
+    expect(fn () => app(InstamartClient::class)->call('get_cart'))->toThrow(SwiggyException::class);
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'swiggy.mcp.failed'
+        && $context['tool'] === 'get_cart'
+        && $context['kind'] === SwiggyException::INVALID)->once();
+});
+
+it('warns when Swiggy flags a tool as deprecated', function () {
+    Log::spy();
+    Connection::factory()->create();
+    Http::fake(fn (Request $request) => Http::response(['id' => $request->data()['id'] ?? '1', 'result' => [
+        'structuredContent' => ['items' => []],
+        '_meta' => ['swiggy' => ['deprecation' => ['sunset' => '2026-12-01', 'replacement' => 'get_cart_v2']]],
+    ]]));
+
+    app(InstamartClient::class)->call('get_cart');
+
+    Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'swiggy.mcp.deprecation'
+        && $context['tool'] === 'get_cart'
+        && $context['deprecation']['replacement'] === 'get_cart_v2')->once();
 });

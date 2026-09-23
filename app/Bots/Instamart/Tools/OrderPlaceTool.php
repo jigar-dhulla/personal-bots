@@ -13,6 +13,8 @@ use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 use Laravel\Ai\Tools\Request;
 use Stringable;
 
@@ -21,7 +23,7 @@ use Stringable;
  * cart and payment options and asks the user to confirm; only a later call
  * — from a later message, by the same sender, against an unchanged cart —
  * actually checks out. Swiggy's `checkout` is not idempotent, so it is
- * never retried.
+ * never retried; a failed call is reconciled against the order list.
  */
 class OrderPlaceTool extends InstamartTool
 {
@@ -32,6 +34,11 @@ class OrderPlaceTool extends InstamartTool
     private const int DEFAULT_POLL_INTERVAL_MS = 5_000;
 
     private const int DEFAULT_POLL_WINDOW_MS = 300_000;
+
+    /** Swiggy suggests waiting 2–5 seconds before checking a failed checkout. */
+    private const int RECONCILE_DELAY_SECONDS = 3;
+
+    private const int RECONCILE_ORDER_COUNT = 5;
 
     /**
      * Set once this tool has shown a confirmation prompt, so the model cannot
@@ -213,11 +220,13 @@ class OrderPlaceTool extends InstamartTool
             }
         }
 
+        $knownOrderIds = $this->recentOrderIds();
+
         try {
             $result = $this->client()->call('checkout', $arguments, retryable: false);
         } catch (SwiggyException $exception) {
             if ($exception->isTransient()) {
-                return 'I could not confirm whether the order went through. Ask me for your order status before trying again, so it is not placed twice.';
+                return $this->reconcileFailedCheckout($knownOrderIds, $method, $cart);
             }
 
             throw $exception;
@@ -284,6 +293,68 @@ class OrderPlaceTool extends InstamartTool
             : 'Your cart was split across stores and only part of it could be ordered:';
 
         return $headline."\n".implode("\n", $lines);
+    }
+
+    /**
+     * The ids of the account's latest Instamart orders, or null when Swiggy
+     * cannot say. Taken before checkout so a failed call can be reconciled.
+     *
+     * @return array<int, string>|null
+     */
+    private function recentOrderIds(): ?array
+    {
+        try {
+            $orders = $this->client()->call('get_orders', ['orderType' => 'INSTAMART', 'count' => self::RECONCILE_ORDER_COUNT]);
+        } catch (SwiggyException) {
+            return null;
+        }
+
+        return collect($orders['orders'] ?? [])->pluck('orderId')->filter()->map(fn (mixed $id): string => (string) $id)->values()->all();
+    }
+
+    /**
+     * Swiggy's rule for a checkout that failed upstream: never retry blind.
+     * Wait briefly, look at the order list, and only then decide. An order id
+     * that was not there before checkout means the order was placed after all.
+     *
+     * @param  array<int, string>|null  $knownOrderIds
+     * @param  array<string, mixed>  $cart
+     */
+    private function reconcileFailedCheckout(?array $knownOrderIds, PaymentMethod $method, array $cart): string
+    {
+        $unsure = 'I could not confirm whether the order went through. Ask me for your order status before trying again, so it is not placed twice.';
+
+        if ($knownOrderIds === null) {
+            return $unsure;
+        }
+
+        Sleep::for(self::RECONCILE_DELAY_SECONDS)->seconds();
+
+        $currentOrderIds = $this->recentOrderIds();
+
+        if ($currentOrderIds === null) {
+            return $unsure;
+        }
+
+        $placed = array_values(array_diff($currentOrderIds, $knownOrderIds));
+
+        Log::warning('swiggy.checkout.reconciled', [
+            'chat_jid' => $this->chatJid,
+            'payment_method' => $method->value,
+            'placed_order_ids' => $placed,
+        ]);
+
+        if ($placed === []) {
+            return 'Swiggy had a hiccup and the order was not placed. Say "order it" when you want me to try again.';
+        }
+
+        foreach ($placed as $orderId) {
+            $this->record($orderId, $method, $method === PaymentMethod::Upi ? OrderStatus::PendingPayment : OrderStatus::Placed, $this->amountDue($cart));
+        }
+
+        return $method === PaymentMethod::Upi
+            ? sprintf('Swiggy was slow to answer, but order #%s was created. I lost the UPI payment link, so open the Swiggy app to pay for it.', implode(', #', $placed))
+            : sprintf('Swiggy was slow to answer, but order #%s was placed (%s, %s).', implode(', #', $placed), $this->money($this->amountDue($cart)), $method->label());
     }
 
     private function record(string $orderId, PaymentMethod $method, OrderStatus $status, ?string $total, ?string $paasId = null): Order
