@@ -9,8 +9,6 @@ use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 use function Laravel\Prompts\text;
@@ -27,10 +25,16 @@ class LoginCommand extends Command
             return $this->status($current);
         }
 
-        $redirectUri = (string) config('services.swiggy.redirect_uri');
+        $redirectUri = SwiggyAuth::redirectUri();
+
+        if (SwiggyAuth::usesWebCallback()) {
+            $this->warn('SWIGGY_REDIRECT_URI is an HTTPS callback, so log in from the dashboard instead: '.route('instamart.login'));
+
+            return self::FAILURE;
+        }
 
         try {
-            $clientId = $current->client_id ?? $auth->register($redirectUri);
+            $clientId = $auth->clientIdFor($redirectUri);
         } catch (RuntimeException $exception) {
             $this->error($exception->getMessage());
 
@@ -71,15 +75,7 @@ class LoginCommand extends Command
             return self::FAILURE;
         }
 
-        $connection = DB::transaction(function () use ($clientId, $token): Connection {
-            Connection::query()->delete();
-
-            return Connection::query()->create([
-                'client_id' => $clientId,
-                'access_token' => $token['access_token'],
-                'expires_at' => Carbon::now()->addSeconds($token['expires_in']),
-            ]);
-        });
+        $connection = Connection::store($clientId, $redirectUri, $token['access_token'], $token['expires_in']);
 
         $this->info(sprintf('Logged in to Swiggy. The token expires %s (%s).', $connection->expires_at->toDayDateTimeString(), $connection->expires_at->diffForHumans()));
 

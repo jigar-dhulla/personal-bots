@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The owner's Swiggy login: the OAuth client registered for this app and the
@@ -17,6 +18,7 @@ use Illuminate\Support\Carbon;
  * the owner has to run `instamart:login` again.
  *
  * @property string $client_id
+ * @property string $redirect_uri
  * @property string $access_token
  * @property Carbon $expires_at
  */
@@ -30,6 +32,7 @@ class Connection extends Model
 
     protected $fillable = [
         'client_id',
+        'redirect_uri',
         'access_token',
         'expires_at',
     ];
@@ -47,6 +50,24 @@ class Connection extends Model
             'access_token' => 'encrypted',
             'expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Replace the saved login with a freshly issued token. There is only ever
+     * one login, so any earlier row goes.
+     */
+    public static function store(string $clientId, string $redirectUri, string $accessToken, int $expiresInSeconds): self
+    {
+        return DB::transaction(function () use ($clientId, $redirectUri, $accessToken, $expiresInSeconds): self {
+            static::query()->delete();
+
+            return static::query()->create([
+                'client_id' => $clientId,
+                'redirect_uri' => $redirectUri,
+                'access_token' => $accessToken,
+                'expires_at' => Carbon::now()->addSeconds($expiresInSeconds),
+            ]);
+        });
     }
 
     /**

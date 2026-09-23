@@ -27,7 +27,7 @@ alias dc='docker compose -f docker-compose.prod.yml'
 | Task | Command |
 |---|---|
 | Is the Swiggy login still valid? | `dc exec queue php artisan instamart:login --status` |
-| Log in (every ≤5 days) | `dc exec queue php artisan instamart:login` |
+| Log in (every ≤5 days) | Dashboard → **Swiggy login** (HTTPS callback), or `dc exec queue php artisan instamart:login` (localhost paste flow) |
 | Revoke the login and clear chat addresses | `dc exec queue php artisan instamart:logout` |
 | Delete stored chat data | `dc exec queue php artisan instamart:forget [--chat=<jid>] [--force]` |
 | Follow Swiggy calls live | `dc exec queue tail -f storage/logs/laravel.log \| grep --line-buffered 'swiggy\.'` |
@@ -42,6 +42,43 @@ Locally, drop the `dc exec …` prefix and run `php artisan …` directly.
 
 Swiggy issues **no refresh tokens**. The access token lasts 5 days (`expires_in` 432000). Swiggy's session lasts 30 days from last use, so a re-login within that window usually doesn't need a new OTP. The dashboard's **Swiggy login** card counts down the days left.
 
+Which flow you use depends on `SWIGGY_REDIRECT_URI`:
+
+| `SWIGGY_REDIRECT_URI` | Flow |
+|---|---|
+| `http://localhost:8765/callback` (default) | Terminal paste flow, `instamart:login` |
+| `https://bots.jigardhulla.dev/instamart/callback`, allowlisted by builders@swiggy.in | Browser flow from the dashboard. `instamart:login` refuses and points to it |
+
+**Prod today:** the localhost paste flow. The HTTPS callback is waiting for Swiggy to allowlist it. Don't change `SWIGGY_REDIRECT_URI` before then (see [Switching to the browser flow](#switching-to-the-browser-flow)).
+
+### Browser flow (HTTPS callback)
+
+1. Log in to the dashboard (`/admin`), then click **Swiggy login** in the nav. The link only shows when the redirect URI is HTTPS.
+2. Log in at Swiggy with phone + OTP. Swiggy sends you back to `/instamart/callback`, and the dashboard shows "Logged in to Swiggy…".
+3. If it says the login "did not start from this dashboard session", you finished a login started elsewhere or opened the callback twice. Click **Swiggy login** again.
+
+The callback needs the dashboard login, and it only accepts the state this session started, once. A forged or replayed callback can't replace the token. Changing `SWIGGY_REDIRECT_URI` registers a new OAuth client on the next login, because a client only works with the redirect it was registered with.
+
+What can go wrong:
+- **Swiggy shows an error instead of the OTP screen, e.g. an invalid or unregistered `redirect_uri`.** The URI isn't allowlisted, or doesn't match it exactly (scheme, host, path, no trailing slash). [Roll back](#switching-to-the-browser-flow) and check with builders@swiggy.in.
+- **You land on the dashboard login page after the OTP.** Your dashboard session expired during the Swiggy step. Log in again: Laravel returns you to the callback, and the login finishes if you do it within ~2 minutes (the code's lifetime). Otherwise click **Swiggy login** again.
+- **"Swiggy token exchange failed …"** The code expired or was already used. Click **Swiggy login** again.
+- **"Swiggy did not complete the login: access_denied".** The login was cancelled at Swiggy. Start again.
+
+### Switching to the browser flow
+
+Do this only after builders@swiggy.in confirms `https://bots.jigardhulla.dev/instamart/callback` is allowlisted.
+
+1. Check the callback is deployed: `curl -sI https://bots.jigardhulla.dev/instamart/callback` should redirect to `/admin/login` (not 404).
+2. In `/opt/yaarpool/.env`, set `SWIGGY_REDIRECT_URI=https://bots.jigardhulla.dev/instamart/callback`.
+3. Recreate the containers so they reload `.env` and rebuild the cached config: `dc up -d --force-recreate`.
+4. Open the dashboard, click **Swiggy login**, and log in. The first login registers a new OAuth client for the HTTPS redirect. The old login stays valid until this one replaces it.
+5. Check: `dc exec queue php artisan instamart:login --status`, then send the bot a message.
+
+**Rollback:** set `SWIGGY_REDIRECT_URI` back to `http://localhost:8765/callback`, run `dc up -d --force-recreate`, and use `instamart:login`. Switching back also registers a fresh client on the next login.
+
+### Terminal paste flow (localhost)
+
 1. `dc exec queue php artisan instamart:login`
 2. Open the printed `https://mcp.swiggy.com/auth/authorize?…` link on any device and log in with phone + OTP.
 3. The browser then goes to `http://localhost:8765/callback?code=…&state=…` (`SWIGGY_REDIRECT_URI`), which won't load. That's expected. Copy the **full URL from the address bar** and paste it into the prompt **within ~2 minutes**, because the code is single-use and expires after 120 s.
@@ -51,7 +88,7 @@ Notes:
 - The first login registers an OAuth client (dynamic client registration). Later logins reuse its `client_id`.
 - `state mismatch` means you pasted a URL from an earlier attempt. Run the command again.
 - `Swiggy token exchange failed` usually means the code expired or was already used. Run the command again and paste faster.
-- An HTTPS redirect URI must be allowlisted by builders@swiggy.in before you can use it in `SWIGGY_REDIRECT_URI`.
+- An HTTPS redirect URI must be allowlisted by builders@swiggy.in before you can use it in `SWIGGY_REDIRECT_URI`. See the browser flow above.
 
 ## Monitoring
 
@@ -71,7 +108,7 @@ Healthy traffic is `swiggy.mcp.call` lines with `status: 200` and `ProcessWhatsA
 ### The bot says "My Swiggy login has expired"
 
 - **Cause:** the token passed its 5 days, or Swiggy answered 401 / 419 / JSON-RPC `-32001`. In that case `Connection::expire()` has already marked it unusable.
-- **Fix:** [log in again](#routine-log-in-again-every-5-days). Nothing needs retrying; ask in WhatsApp again afterwards.
+- **Fix:** [log in again](#routine-log-in-again-every-5-days) (dashboard **Swiggy login**, or `instamart:login`). Nothing needs retrying; ask in WhatsApp again afterwards.
 
 ### Every Instamart message fails fast (`ProcessWhatsAppMessage … FAIL` in under 100 ms)
 
@@ -135,7 +172,7 @@ What the bot stores, and how to remove it:
 
 | Data | Where | Removed by |
 |---|---|---|
-| Swiggy access token (encrypted with `APP_KEY`) + OAuth `client_id` | `instamart_connections` | `instamart:logout` (also revokes it at Swiggy) |
+| Swiggy access token (encrypted with `APP_KEY`) + OAuth `client_id` and the redirect URI it was registered for | `instamart_connections` | `instamart:logout` (also revokes it at Swiggy) |
 | Delivery address id + address line, per chat | `instamart_chat_addresses` | `instamart:logout`, `instamart:forget` |
 | Orders it placed (id, chat, sender, payment method, status, total) | `instamart_orders` | `instamart:forget` |
 | Last search results (3 h) and a pending order confirmation (10 min), per chat | cache | expiry, `instamart:forget` |

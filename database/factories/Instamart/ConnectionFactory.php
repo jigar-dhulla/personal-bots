@@ -23,6 +23,7 @@ class ConnectionFactory extends Factory
     {
         return [
             'client_id' => fake()->uuid(),
+            'redirect_uri' => 'http://localhost:8765/callback',
             'access_token' => fake()->sha256(),
             'expires_at' => Carbon::now()->addDays(5),
         ];
