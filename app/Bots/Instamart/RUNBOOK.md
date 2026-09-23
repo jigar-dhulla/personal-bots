@@ -47,7 +47,9 @@ Which flow you use depends on `SWIGGY_REDIRECT_URI`:
 | `SWIGGY_REDIRECT_URI` | Flow |
 |---|---|
 | `http://localhost:8765/callback` (default) | Terminal paste flow, `instamart:login` |
-| `https://<your domain>/instamart/callback`, allowlisted by builders@swiggy.in | Browser flow from the dashboard. `instamart:login` refuses and points to it |
+| `https://bots.jigardhulla.dev/instamart/callback`, allowlisted by builders@swiggy.in | Browser flow from the dashboard. `instamart:login` refuses and points to it |
+
+**Prod today:** the localhost paste flow. The HTTPS callback is waiting for Swiggy to allowlist it. Don't change `SWIGGY_REDIRECT_URI` before then (see [Switching to the browser flow](#switching-to-the-browser-flow)).
 
 ### Browser flow (HTTPS callback)
 
@@ -56,6 +58,24 @@ Which flow you use depends on `SWIGGY_REDIRECT_URI`:
 3. If it says the login "did not start from this dashboard session", you finished a login started elsewhere or opened the callback twice. Click **Swiggy login** again.
 
 The callback needs the dashboard login, and it only accepts the state this session started, once. A forged or replayed callback can't replace the token. Changing `SWIGGY_REDIRECT_URI` registers a new OAuth client on the next login, because a client only works with the redirect it was registered with.
+
+What can go wrong:
+- **Swiggy shows an error instead of the OTP screen, e.g. an invalid or unregistered `redirect_uri`.** The URI isn't allowlisted, or doesn't match it exactly (scheme, host, path, no trailing slash). [Roll back](#switching-to-the-browser-flow) and check with builders@swiggy.in.
+- **You land on the dashboard login page after the OTP.** Your dashboard session expired during the Swiggy step. Log in again: Laravel returns you to the callback, and the login finishes if you do it within ~2 minutes (the code's lifetime). Otherwise click **Swiggy login** again.
+- **"Swiggy token exchange failed …"** The code expired or was already used. Click **Swiggy login** again.
+- **"Swiggy did not complete the login: access_denied".** The login was cancelled at Swiggy. Start again.
+
+### Switching to the browser flow
+
+Do this only after builders@swiggy.in confirms `https://bots.jigardhulla.dev/instamart/callback` is allowlisted.
+
+1. Check the callback is deployed: `curl -sI https://bots.jigardhulla.dev/instamart/callback` should redirect to `/admin/login` (not 404).
+2. In `/opt/yaarpool/.env`, set `SWIGGY_REDIRECT_URI=https://bots.jigardhulla.dev/instamart/callback`.
+3. Recreate the containers so they reload `.env` and rebuild the cached config: `dc up -d --force-recreate`.
+4. Open the dashboard, click **Swiggy login**, and log in. The first login registers a new OAuth client for the HTTPS redirect. The old login stays valid until this one replaces it.
+5. Check: `dc exec queue php artisan instamart:login --status`, then send the bot a message.
+
+**Rollback:** set `SWIGGY_REDIRECT_URI` back to `http://localhost:8765/callback`, run `dc up -d --force-recreate`, and use `instamart:login`. Switching back also registers a fresh client on the next login.
 
 ### Terminal paste flow (localhost)
 
