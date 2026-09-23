@@ -59,6 +59,7 @@ To add a tool: create the class under `app/Bots/Yaarpool/Tools/` and register it
 
 ## Instamart
 
+- **Runbook:** `app/Bots/Instamart/RUNBOOK.md` covers re-login every 5 days, prod commands, log lines to watch, incident playbooks (expired login, Gemini schema rejections, uncertain checkouts, stuck UPI payments, wacli "Stream replaced"), retrying failed jobs, and data deletion. Keep it in sync when Instamart behaviour or commands change.
 - `App\Bots\Instamart\InstamartAgent` shops on Swiggy Instamart for **one owner account**. Swiggy docs (the authority for tool names/params/errors): https://mcp.swiggy.com/builders/llms.txt — never invent tool names or parameters.
 - `Swiggy\InstamartClient` is a minimal MCP client (JSON-RPC over streamable HTTP to `services.swiggy.instamart_url`): caches one MCP session per login, retries transient 5xx for safe tools, unwraps the `{success, data, message}` envelope into `SwiggyException` kinds. `checkout` is called with `retryable: false` — it is not idempotent.
 - Auth is OAuth 2.1 + PKCE with no refresh tokens (5-day access token). `php artisan instamart:login` does DCR + a paste-the-redirect-URL flow against `SWIGGY_REDIRECT_URI` (http://localhost for dev; HTTPS URIs must be allowlisted by builders@swiggy.in). Token lives encrypted in `instamart_connections`; a 401 expires it.
