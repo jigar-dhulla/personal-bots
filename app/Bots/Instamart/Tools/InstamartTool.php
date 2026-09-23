@@ -140,11 +140,81 @@ abstract class InstamartTool implements Tool
     }
 
     /**
-     * @return array<int, array{spinId: string, skuId: string, name: string, inStock: bool, maxQuantity: int|null}>
+     * @return array<int, array{spinId: string, skuId: string, name: string, inStock: bool, maxQuantity: int|null, offerPrice: mixed, mrp: mixed}>
      */
     protected function picks(): array
     {
         return (array) Cache::get($this->picksCacheKey(), []);
+    }
+
+    /**
+     * A search result's variation as a pick: the ids the cart needs plus what
+     * the user sees. Null for variations Swiggy returned without cart ids.
+     *
+     * @param  array<string, mixed>  $product
+     * @param  array<string, mixed>  $variation
+     * @return array{spinId: string, skuId: string, name: string, inStock: bool, maxQuantity: int|null, offerPrice: mixed, mrp: mixed}|null
+     */
+    protected function pickFromVariation(array $product, array $variation): ?array
+    {
+        if (blank($variation['spinId'] ?? null) || blank($variation['skuId'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'spinId' => (string) $variation['spinId'],
+            'skuId' => (string) $variation['skuId'],
+            'name' => trim(($variation['displayName'] ?? $product['displayName'] ?? 'Item').' '.($variation['quantityDescription'] ?? '')),
+            'inStock' => (bool) ($variation['isInStockAndAvailable'] ?? false),
+            'maxQuantity' => isset($variation['maxQuantity']) ? (int) $variation['maxQuantity'] : null,
+            'offerPrice' => $variation['price']['offerPrice'] ?? null,
+            'mrp' => $variation['price']['mrp'] ?? null,
+        ];
+    }
+
+    /**
+     * One numbered line for a pick: name, price (with MRP when discounted)
+     * and stock.
+     *
+     * @param  array{name: string, inStock: bool, offerPrice: mixed, mrp: mixed}  $pick
+     */
+    protected function describePick(int $number, array $pick): string
+    {
+        $offer = $pick['offerPrice'];
+        $mrp = $pick['mrp'];
+
+        return sprintf(
+            '%d. %s — %s%s %s',
+            $number,
+            $pick['name'],
+            $this->money($offer ?? $mrp),
+            $mrp !== null && $offer !== null && $mrp > $offer ? ' (MRP '.$this->money($mrp).')' : '',
+            $pick['inStock'] ? '✅' : '❌ out of stock',
+        );
+    }
+
+    /**
+     * Add picks to the live cart in one `update_cart`. A pick already in the
+     * cart gets its quantity increased rather than a second line.
+     *
+     * @param  array<int, array{spinId: string, skuId: string, quantity: int}>  $additions
+     * @return array<string, mixed>
+     */
+    protected function addToCart(ChatAddress $address, array $additions): array
+    {
+        $lines = $this->cartLines($this->cart());
+
+        foreach ($additions as $addition) {
+            $existing = array_search($addition['spinId'], array_column($lines, 'spinId'), true);
+
+            if ($existing === false) {
+                $lines[] = $addition;
+            } else {
+                $lines[$existing]['quantity'] += $addition['quantity'];
+            }
+        }
+
+        return $this->replaceCart($address, $lines);
     }
 
     protected function forgetPicks(): void
