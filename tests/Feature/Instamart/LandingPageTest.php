@@ -12,6 +12,16 @@ it('explains that the Instamart bot is private and invites forking', function ()
         ->assertSee('Not affiliated with or endorsed by Swiggy.');
 });
 
+it('embeds the demo video from the public directory', function () {
+    expect(public_path('videos/instamart-demo.mp4'))->toBeFile()
+        ->and(public_path('videos/instamart-demo-poster.jpg'))->toBeFile();
+
+    $this->get(route('instamart.home'))
+        ->assertSee('See it in action')
+        ->assertSee(asset('videos/instamart-demo.mp4'), false)
+        ->assertSee(asset('videos/instamart-demo-poster.jpg'), false);
+});
+
 it('never offers the WhatsApp number on the Instamart page', function () {
     config(['whatsapp-agent.number' => '15551234567']);
 
