@@ -2,148 +2,160 @@
 
 # Jigar's Bots
 
-One WhatsApp number, many bots. Inbound messages are pulled from a local `wacli` SQLite store, dispatched to whichever bots are in scope for that chat and matched by the message body, and their replies are sent back to WhatsApp.
+A set of personal WhatsApp bots that share **one phone number**. You message the number, and each bot replies only in the chats you've set it up for.
 
-Each bot owns a vertical slice under `app/Bots/<Name>/` — its agent, tools, models, admin screens and artisan commands — and is registered once in `config/bots.php`. Everything shared (WhatsApp transport, the admin dashboard, auth, the public hub) is bot-agnostic.
+| Bot | What it does | Try saying |
+|---|---|---|
+| **Yaarpool** | Carpooling in group chats. Post, find, join, edit or cancel rides | "driving Pune → Mumbai Sat 9am, 3 seats" · "need a lift Andheri → BKC tomorrow 8am" · "show rides" |
+| **Instamart** | Grocery shopping on Swiggy Instamart for one owner account. Search, fill the cart, order (cash or UPI) | "is there brown bread?" · "add 2 of number 3" · "what do I need for veg pulav for 4?" · "place the order" |
 
-**Yaarpool**, a ridesharing bot, is the first bot in the repo. Members of a group post offers ("driving Pune → Mumbai Sat 9am, 3 seats") and requests ("need a lift Andheri → BKC tomorrow 8am") in natural language; it detects intent and persists, lists, edits, joins, or cancels rides on their behalf.
+Built with Laravel 13, the [Laravel AI SDK](https://github.com/laravel/ai) (Gemini by default) and [`laravel-whatsapp-ai-agent`](https://github.com/jigar-dhulla/laravel-whatsapp-ai-agent).
 
 ## How it works
 
 ```
-wacli sync ──► ~/.wacli/wacli.db ──► wa:listen ──► AgentRouter ──► <Bot>Agent ──► tool ──► reply
-                                                   (scope + triggers)
+wacli sync ──► ~/.wacli/wacli.db ──► php artisan wa:listen ──► bot agent ──► tools ──► WhatsApp reply
 ```
 
-`AgentRouter` (from the transport package) dispatches a message to every agent whose scope contains the chat JID *and* whose triggers match the body. The agent table in `config/whatsapp-agent.php` is derived from `config/bots.php`, one entry per registered bot, each scoped by its own env prefix.
+[`wacli`](https://github.com/openclaw/wacli) keeps a local copy of your WhatsApp messages. `wa:listen` reads new ones and hands each message to every bot configured for that chat.
 
-Agents are built on the Laravel AI SDK and backed by Google Gemini by default. They extend `App\Bots\BotAgent`, which supplies the parts every bot shares — binding the conversation to a chat, registering the sender as a user, and assembling the system prompt (current date/time, configured triggers, WhatsApp etiquette rules) around the bot's own persona, tool guidance, and extra rules.
+## Getting started
 
-WhatsApp transport is handled by [`jigar-dhulla/laravel-whatsapp-ai-agent`](https://github.com/jigar-dhulla/laravel-whatsapp-ai-agent), which in turn relies on the external `wacli` sync daemon to maintain `~/.wacli/wacli.db`.
+### 1. Prerequisites
 
-## Adding a bot
+- PHP 8.4+, Composer, Node.js
+- A [Gemini API key](https://aistudio.google.com/apikey)
+- [`wacli`](https://github.com/openclaw/wacli), paired with the bot's WhatsApp number and syncing:
 
-1. Create the slice under `app/Bots/<Name>/`:
-   - `<Name>Agent extends App\Bots\BotAgent` — implement `persona()`, `guidance()`, `tools()`, and optionally `rules()`.
-   - `Tools/` — one class per tool, implementing `Laravel\Ai\Contracts\Tool`.
-   - `Models/`, `Enums/`, `Http/Controllers/`, `Console/` as needed. Models outside `App\Models` need a `#[UseFactory(...)]` attribute to find their factory.
-2. Write a manifest implementing `App\Bots\Bot` — its key, name, tagline, agent class, env prefix, route file, commands, admin nav links and dashboard cards.
-3. Register the manifest class in `config/bots.php`.
-4. Add `<PREFIX>_TRIGGERS`, `<PREFIX>_CHATS`, `<PREFIX>_GROUPS` to `.env` — plus `<PREFIX>_DOMAIN` if the bot has a hostname of its own, which makes `/` there open its landing page instead of the hub.
+  ```bash
+  wacli sync --follow --refresh-contacts --refresh-groups
+  ```
 
-That's it — the agent table, public hub entry, routes, admin nav, dashboard cards and artisan commands all follow from the manifest. Discover JIDs with `php artisan wa:chats` / `wa:groups`; verify the wiring with `php artisan wa:status`.
+Prefer not to install PHP or `wacli` locally? See [Run with Docker](#run-with-docker).
 
-## Yaarpool's tools
+### 2. Install
 
-| Tool | Purpose | Owner-only |
+```bash
+git clone https://github.com/jigar-dhulla/personal-bots.git
+cd personal-bots
+composer run setup                # install, copy .env, generate key, migrate, build assets
+php artisan user:register         # create a dashboard login (there is no public sign-up)
+```
+
+### 3. Configure `.env`
+
+```dotenv
+GEMINI_API_KEY=your-key
+WA_PHONE_NUMBER=919800000000      # the bot's number, digits only (used for wa.me links)
+```
+
+Each bot listens only where you point it. Find chat and group JIDs:
+
+```bash
+php artisan wa:chats              # 1:1 chats
+php artisan wa:groups             # groups
+```
+
+Then set each bot's block (the prefix is the bot's key, upper-cased):
+
+```dotenv
+# Yaarpool: answer every message in these groups
+YAARPOOL_TRIGGERS=
+YAARPOOL_CHATS=
+YAARPOOL_GROUPS=120363000000000000@g.us
+
+# Instamart: only reply in my own chat, when summoned
+INSTAMART_TRIGGERS=instamart,grocery
+INSTAMART_CHATS=919800000000@s.whatsapp.net
+INSTAMART_GROUPS=
+```
+
+| Variable | Meaning |
+|---|---|
+| `<BOT>_TRIGGERS` | Comma-separated phrases that summon the bot (case-insensitive, anywhere in the message). Empty = every message in scope |
+| `<BOT>_CHATS` | Comma-separated DM JIDs the bot listens to |
+| `<BOT>_GROUPS` | Comma-separated group JIDs the bot listens to |
+| `<BOT>_DOMAIN` | Optional hostname whose `/` opens this bot's landing page |
+
+A bot with no chats and no groups stays off. Check the wiring with:
+
+```bash
+php artisan wa:status
+```
+
+### 4. Run
+
+```bash
+composer run dev                  # web server, queue worker, logs, Vite
+php artisan wa:listen             # in a second terminal (add -vvv to see every message)
+```
+
+Open `http://localhost:8000/admin` for the dashboard, then message the bot from a chat you configured.
+
+## Bot setup
+
+### Yaarpool
+
+Works as soon as its chats/groups are set. Optional extras:
+
+```bash
+# Default origin/destination for a group, so "need a lift at 9" is enough
+php artisan group:settings 120363000000000000@g.us --from="Andheri" --to="BKC"
+```
+
+Members can also save their own commute: *"my usual route is Andheri to BKC, office 10–7, Mon/Wed/Fri"*.
+
+### Instamart
+
+Instamart orders on **one Swiggy account**, so it needs a Swiggy login. The login lasts **5 days**; log in again before it runs out (the dashboard counts down).
+
+```bash
+php artisan instamart:login           # prints a Swiggy link; log in with OTP, paste the redirected URL back
+php artisan instamart:login --status  # is the login still valid?
+php artisan instamart:logout          # revoke it
+php artisan instamart:forget          # delete stored addresses, orders and caches
+```
+
+| Variable | Default | Meaning |
 |---|---|---|
-| `ride_request` | Persist a passenger looking for a lift | — |
-| `ride_create` | Persist a driver publishing a trip | — |
-| `ride_list` | List upcoming rides in the current chat | — |
-| `ride_join` | Reserve seat(s) on someone else's offer | — |
-| `ride_update` | Edit a ride the user previously posted | ✓ |
-| `ride_delete` | Cancel a ride the user previously posted | ✓ |
-| `route_travellers` | List chat members whose saved personal route matches | — |
-| `user_settings` | Save or show the sender's personal commute defaults | — |
+| `SWIGGY_REDIRECT_URI` | `http://localhost:8765/callback` | Keep the default for the terminal login above. An HTTPS `…/instamart/callback` URL (allowlisted by Swiggy) enables a **Swiggy login** button in the dashboard instead |
 
-Owner-only tools refuse the call unless both the chat JID and sender JID on the ride match the inbound WhatsApp message; rides in other chats are treated as not-found rather than surfaced.
+A typical chat:
 
-## Requirements
-
-- PHP 8.4+
-- A Gemini API key (`GEMINI_API_KEY`)
-- `wacli sync --follow --refresh-contacts --refresh-groups` running externally to keep `~/.wacli/wacli.db` populated
-
-## Setup
-
-```bash
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
+```
+you:  what do I need for paneer butter masala for 2?
+bot:  1. Amul Fresh Paneer 200g — ₹95  2. Tomatoes 500g — ₹30 …
+you:  add all
+you:  place the order, cash
+bot:  Order summary: 6 items, ₹412, to Home (…). Reply yes to confirm.
+you:  yes
 ```
 
-Add `GEMINI_API_KEY` to `.env`, then wire each bot's chat / group JIDs into its `<PREFIX>_CHATS` / `<PREFIX>_GROUPS` env vars. Discover JIDs with:
-
-```bash
-php artisan wa:chats     # list 1:1 chats
-php artisan wa:groups    # list groups
-php artisan wa:status    # verify which agent is wired to which chat
-```
-
-## Running
-
-Start the app stack (HTTP server, queue worker, log tail, Vite):
-
-```bash
-composer run dev
-```
-
-Start the WhatsApp listener daemon in a separate terminal:
-
-```bash
-php artisan wa:listen          # add -vvv to log every scanned message
-```
+Orders are never placed without an explicit "yes". Orders can't be cancelled from WhatsApp; call Swiggy customer care. For operations and troubleshooting, see the [Instamart runbook](app/Bots/Instamart/RUNBOOK.md).
 
 ## Run with Docker
 
-A `Dockerfile` and `docker-compose.yml` are included if you'd rather not install PHP or `wacli` on the host. The image bundles PHP 8.4, Composer, and a Linux build of `wacli`; compose runs four services off the same image:
-
-- `wacli` — the `wacli sync` daemon that keeps `~/.wacli/wacli.db` populated.
-- `wa-listen` — `php artisan wa:listen`.
-- `queue` — the database queue worker.
-- `app` — on-demand shell for ad-hoc artisan / composer / tests (in the `cli` profile, so it doesn't start with `up`).
-
-The project source is bind-mounted at `/app` and the host's `~/.wacli` is bind-mounted into each container so the existing WhatsApp pairing is reused. **Stop any host-side `wacli sync` first** to avoid two daemons writing to the same SQLite file.
+The image bundles PHP 8.4, Composer and `wacli`. Your `~/.wacli` is mounted in, so the existing WhatsApp pairing is reused. **Stop any `wacli sync` running on the host first.**
 
 ```bash
 docker compose build
 docker compose run --rm app composer install
 docker compose run --rm app php artisan migrate
 docker compose up -d wacli wa-listen queue
+
+docker compose run --rm app php artisan wa:status   # ad-hoc commands
+docker compose logs -f wa-listen                    # follow the listener
 ```
 
-Ad-hoc artisan, composer, or tests go through the `app` service:
+## Development
 
 ```bash
-docker compose run --rm app php artisan test --compact
-docker compose run --rm app php artisan wa:status
-docker compose logs -f wa-listen
+php artisan test --compact            # run tests
+vendor/bin/pint --dirty               # format changed PHP files
 ```
 
-The bundled `wacli` version is pinned by the `WACLI_VERSION` arg in the `Dockerfile` — the single source of truth for both local and production builds. To upgrade, bump that one line and rebuild; committing it to `main` rolls the new version out to production via the publish-image workflow. For a throwaway local test of another release without editing the `Dockerfile`, pass `--build-arg WACLI_VERSION=<version>` to `docker compose build`.
-
-## Tests
-
-```bash
-php artisan test --compact
-```
-
-## Project structure
-
-```
-app/
-  Bots/
-    Bot.php               # manifest contract: what a bot contributes to the app
-    BotAgent.php          # shared agent base (conversation binding, prompt skeleton)
-    BotRegistry.php       # resolves the roster from config/bots.php
-    Yaarpool/             # one folder per bot
-      YaarpoolAgent.php
-      YaarpoolBot.php     # the manifest
-      Tools/ Models/ Enums/ Http/Controllers/ Console/
-  Http/Controllers/       # shared: auth, admin dashboard, failed jobs
-  Models/User.php         # shared: dashboard login + WhatsApp sender registry
-config/
-  bots.php                # the bot roster — the one place a bot is registered
-  whatsapp-agent.php      # transport config; agent table derived from bots.php
-routes/
-  web.php                 # hub + shared admin, then each bot's route file
-  bots/yaarpool.php
-resources/views/
-  welcome.blade.php       # the public hub listing every bot
-  yaarpool/               # one folder per bot's views
-```
+Each bot lives in `app/Bots/<Name>/` and is registered in `config/bots.php`. To add a bot or learn how the pieces fit, see [`CLAUDE.md`](CLAUDE.md).
 
 ## License
 
-Licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0-only)](https://www.gnu.org/licenses/agpl-3.0.html). The full text is in [`LICENSE`](LICENSE).
+[AGPL-3.0-only](LICENSE).
