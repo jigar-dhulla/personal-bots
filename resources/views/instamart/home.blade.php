@@ -43,6 +43,29 @@
                     </p>
                 </header>
 
+                <section class="flex flex-col gap-4">
+                    <h2 class="font-display text-xl font-extrabold tracking-tight">See it in action</h2>
+
+                    <p class="opacity-80">
+                        From "find items for a Greek salad" to a placed UPI order, all inside a WhatsApp group
+                        (sped up 4&times;, personal details blurred).
+                    </p>
+
+                    <video
+                        src="{{ asset('videos/instamart-demo.mp4') }}"
+                        poster="{{ asset('videos/instamart-demo-poster.jpg') }}"
+                        width="1080"
+                        height="1920"
+                        controls
+                        muted
+                        playsinline
+                        preload="metadata"
+                        class="mx-auto h-auto w-full max-w-xs rounded-3xl border border-ink/10 bg-white shadow-card"
+                    >
+                        <a href="{{ asset('videos/instamart-demo.mp4') }}">Watch the demo video</a>
+                    </video>
+                </section>
+
                 <section class="flex flex-col gap-4 rounded-3xl border border-ink/10 bg-white p-6 shadow-card">
                     <h2 class="font-display text-xl font-extrabold tracking-tight">Want one of your own?</h2>
 
