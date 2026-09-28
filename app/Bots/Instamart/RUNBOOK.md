@@ -97,7 +97,7 @@ All Swiggy traffic goes to `storage/logs/laravel.log`. On prod it is **not** in 
 | Log line | Level | Meaning |
 |---|---|---|
 | `swiggy.mcp.call` | info (warning when the call fails) | One per HTTP call: `method`, `tool`, `request_id` (our JSON-RPC id), `session_id` / `response_session_id` (Swiggy currently issues none), `arguments`, `status`, `duration_ms`, `rate_limit_remaining`, `at`. The token is never logged |
-| `swiggy.mcp.failed` | warning | A call that failed after any retries. `kind` is one of `not_connected`, `unauthenticated`, `rate_limited`, `transient`, `domain`, `invalid` |
+| `swiggy.mcp.failed` | warning | A call that failed after any retries. `exception` is the package's exception class: `AuthenticationException`, `RateLimitedException`, `TransientException`, `ToolException` (Swiggy's business failure) or `InvalidRequestException`. A missing login throws before any call, so it is not logged here |
 | `swiggy.mcp.deprecation` | warning | Swiggy flagged a tool or parameter in `_meta.swiggy.deprecation`. Plan the change before the removal date |
 | `swiggy.checkout.reconciled` | warning | A checkout failed upstream and was checked against `get_orders`. `placed_order_ids` says whether it went through |
 
@@ -186,7 +186,7 @@ Orders stay on the Swiggy account whatever is deleted here. Swiggy remains the d
 
 The live server differs from the docs here, and the code follows the live server:
 
-- Tool results come back as raw data in `structuredContent`, not the documented `{success, data, message}` envelope. `InstamartClient::unwrap()` accepts both.
+- Tool results come back as raw data in `structuredContent`, not the documented `{success, data, message}` envelope. The `jigar-dhulla/swiggy-mcp` package's `McpClient` accepts both.
 - The server doesn't issue an `Mcp-Session-Id`, and hasn't sent rate-limit headers so far.
 - `ship-to-production` says rate limits aren't enforced in v1.0, while the rate-limits page gives numbers.
 - The `/auth/register` request format isn't documented. We send a standard RFC 7591 body.

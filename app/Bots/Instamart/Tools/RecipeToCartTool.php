@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Bots\Instamart\Tools;
 
-use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use JigarDhulla\SwiggyMcp\Exceptions\AuthenticationException;
+use JigarDhulla\SwiggyMcp\Exceptions\RateLimitedException;
+use JigarDhulla\SwiggyMcp\Exceptions\SwiggyException;
 use Laravel\Ai\Tools\Request;
 use Stringable;
 
@@ -95,7 +97,7 @@ class RecipeToCartTool extends InstamartTool
                     'query' => $ingredient,
                 ]);
             } catch (SwiggyException $exception) {
-                if ($exception->needsLogin() || $exception->kind === SwiggyException::RATE_LIMITED) {
+                if ($exception instanceof AuthenticationException || $exception instanceof RateLimitedException) {
                     throw $exception;
                 }
 
