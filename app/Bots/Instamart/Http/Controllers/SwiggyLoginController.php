@@ -9,7 +9,8 @@ use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use RuntimeException;
+use JigarDhulla\SwiggyMcp\Auth\AuthorizationRequest;
+use JigarDhulla\SwiggyMcp\Exceptions\OAuthException;
 
 /**
  * Logs the Instamart bot into Swiggy from the browser: the dashboard starts
@@ -36,47 +37,35 @@ class SwiggyLoginController extends Controller
 
         try {
             $clientId = $auth->clientIdFor($redirectUri);
-        } catch (RuntimeException $exception) {
+        } catch (OAuthException $exception) {
             return $this->backToDashboard($exception->getMessage());
         }
 
-        $pkce = SwiggyAuth::pkcePair();
-        $state = SwiggyAuth::state();
+        $login = $auth->authorize($clientId, $redirectUri);
 
-        $request->session()->put(self::SESSION_KEY, [
-            'state' => $state,
-            'verifier' => $pkce['verifier'],
-            'client_id' => $clientId,
-            'redirect_uri' => $redirectUri,
-        ]);
+        $request->session()->put(self::SESSION_KEY, $login->toArray());
 
-        return redirect()->away($auth->authorizationUrl($clientId, $redirectUri, $pkce['challenge'], $state));
+        return redirect()->away($login->url);
     }
 
     public function callback(Request $request, SwiggyAuth $auth): RedirectResponse
     {
-        /** @var array{state: string, verifier: string, client_id: string, redirect_uri: string}|null $pending */
+        /** @var array{url: string, client_id: string, redirect_uri: string, state: string, code_verifier: string}|null $pending */
         $pending = $request->session()->pull(self::SESSION_KEY);
 
-        if ($pending === null || ! hash_equals($pending['state'], (string) $request->query('state'))) {
+        if (! isset($pending['state'], $pending['code_verifier']) || ! hash_equals($pending['state'], (string) $request->query('state'))) {
             return $this->backToDashboard('That Swiggy login did not start from this dashboard session. Start it again from "Swiggy login".');
         }
 
-        if (filled($request->query('error'))) {
-            return $this->backToDashboard('Swiggy did not complete the login: '.$request->query('error_description', $request->query('error')));
-        }
-
-        if (blank($request->query('code'))) {
-            return $this->backToDashboard('Swiggy sent no authorization code. Start the login again.');
-        }
+        $login = AuthorizationRequest::fromArray($pending);
 
         try {
-            $token = $auth->exchange($pending['client_id'], (string) $request->query('code'), $pending['verifier'], $pending['redirect_uri']);
-        } catch (RuntimeException $exception) {
+            $token = $auth->exchange($login, $request->fullUrl());
+        } catch (OAuthException $exception) {
             return $this->backToDashboard($exception->getMessage());
         }
 
-        $connection = Connection::store($pending['client_id'], $pending['redirect_uri'], $token['access_token'], $token['expires_in']);
+        $connection = Connection::store($login->clientId, $login->redirectUri, $token->value, $token->expiresIn);
 
         return $this->backToDashboard(sprintf(
             'Logged in to Swiggy. The token expires %s (%s).',

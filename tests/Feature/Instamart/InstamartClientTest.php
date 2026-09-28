@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 use App\Bots\Instamart\Models\Connection;
 use App\Bots\Instamart\Swiggy\InstamartClient;
-use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use JigarDhulla\SwiggyMcp\Exceptions\AuthenticationException;
+use JigarDhulla\SwiggyMcp\Exceptions\InvalidRequestException;
+use JigarDhulla\SwiggyMcp\Exceptions\ToolException;
+use JigarDhulla\SwiggyMcp\Exceptions\TransientException;
 
 uses(RefreshDatabase::class);
 
@@ -22,7 +25,7 @@ it('refuses to call Swiggy without an active login', function () {
     Http::fake();
 
     expect(fn () => app(InstamartClient::class)->call('get_cart'))
-        ->toThrow(fn (SwiggyException $e) => expect($e->needsLogin())->toBeTrue());
+        ->toThrow(AuthenticationException::class);
 
     Http::assertNothingSent();
 });
@@ -70,7 +73,7 @@ it('surfaces a success:false envelope as a domain failure', function () {
     ]])]);
 
     expect(fn () => app(InstamartClient::class)->call('update_cart', ['items' => []]))
-        ->toThrow(SwiggyException::class, 'Item out of stock');
+        ->toThrow(ToolException::class, 'Item out of stock');
 });
 
 it('expires the saved login when Swiggy rejects the token', function () {
@@ -78,7 +81,7 @@ it('expires the saved login when Swiggy rejects the token', function () {
     fakeInstamart(['get_cart' => fn () => Http::response('', 401)]);
 
     expect(fn () => app(InstamartClient::class)->call('get_cart'))
-        ->toThrow(fn (SwiggyException $e) => expect($e->needsLogin())->toBeTrue());
+        ->toThrow(AuthenticationException::class);
 
     expect($connection->fresh()->isExpired())->toBeTrue();
 });
@@ -99,7 +102,7 @@ it('never retries a call marked unsafe to repeat', function () {
     fakeInstamart(['checkout' => fn () => Http::response('', 503)]);
 
     expect(fn () => app(InstamartClient::class)->call('checkout', [], retryable: false))
-        ->toThrow(fn (SwiggyException $e) => expect($e->isTransient())->toBeTrue());
+        ->toThrow(TransientException::class);
 
     expect(instamartCalls('checkout'))->toHaveCount(1);
 });
@@ -125,7 +128,7 @@ it('treats an error result without an envelope as a domain failure', function ()
     ]]));
 
     expect(fn () => app(InstamartClient::class)->call('search_products', ['addressId' => 'x', 'query' => 'milk']))
-        ->toThrow(SwiggyException::class, 'Invalid addressId');
+        ->toThrow(ToolException::class, 'Invalid addressId');
 });
 
 it('logs every call with the ids Swiggy asks for, never the token', function () {
@@ -149,11 +152,11 @@ it('logs a failed call with its kind', function () {
     Connection::factory()->create();
     fakeInstamart(['get_cart' => fn () => Http::response(['error' => ['message' => 'Missing addressId']], 400)]);
 
-    expect(fn () => app(InstamartClient::class)->call('get_cart'))->toThrow(SwiggyException::class);
+    expect(fn () => app(InstamartClient::class)->call('get_cart'))->toThrow(InvalidRequestException::class);
 
     Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context) => $message === 'swiggy.mcp.failed'
         && $context['tool'] === 'get_cart'
-        && $context['kind'] === SwiggyException::INVALID)->once();
+        && $context['exception'] === InvalidRequestException::class)->once();
 });
 
 it('warns when Swiggy flags a tool as deprecated', function () {

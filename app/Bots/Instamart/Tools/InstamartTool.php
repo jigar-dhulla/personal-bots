@@ -6,8 +6,11 @@ namespace App\Bots\Instamart\Tools;
 
 use App\Bots\Instamart\Models\ChatAddress;
 use App\Bots\Instamart\Swiggy\InstamartClient;
-use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Support\Facades\Cache;
+use JigarDhulla\SwiggyMcp\Exceptions\AuthenticationException;
+use JigarDhulla\SwiggyMcp\Exceptions\RateLimitedException;
+use JigarDhulla\SwiggyMcp\Exceptions\SwiggyException;
+use JigarDhulla\SwiggyMcp\Exceptions\TransientException;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 use Stringable;
@@ -59,9 +62,9 @@ abstract class InstamartTool implements Tool
     protected function describeFailure(SwiggyException $exception): string
     {
         return match (true) {
-            $exception->needsLogin() => 'My Swiggy login has expired. The owner needs to run `php artisan instamart:login` before I can shop again.',
-            $exception->kind === SwiggyException::RATE_LIMITED => 'Swiggy is asking me to slow down. Try again in a minute.',
-            $exception->isTransient() => 'Swiggy is not responding right now. Try again in a little while.',
+            $exception instanceof AuthenticationException => 'My Swiggy login has expired. The owner needs to run `php artisan instamart:login` before I can shop again.',
+            $exception instanceof RateLimitedException => 'Swiggy is asking me to slow down. Try again in a minute.',
+            $exception instanceof TransientException => 'Swiggy is not responding right now. Try again in a little while.',
             default => 'Swiggy says: '.$exception->getMessage(),
         };
     }

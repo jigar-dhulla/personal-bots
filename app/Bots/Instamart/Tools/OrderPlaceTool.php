@@ -9,12 +9,13 @@ use App\Bots\Instamart\Enums\PaymentMethod;
 use App\Bots\Instamart\Jobs\ConfirmUpiPayment;
 use App\Bots\Instamart\Models\ChatAddress;
 use App\Bots\Instamart\Models\Order;
-use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use JigarDhulla\SwiggyMcp\Exceptions\SwiggyException;
+use JigarDhulla\SwiggyMcp\Exceptions\TransientException;
 use Laravel\Ai\Tools\Request;
 use Stringable;
 
@@ -225,7 +226,7 @@ class OrderPlaceTool extends InstamartTool
         try {
             $result = $this->client()->call('checkout', $arguments, retryable: false);
         } catch (SwiggyException $exception) {
-            if ($exception->isTransient()) {
+            if ($exception instanceof TransientException) {
                 return $this->reconcileFailedCheckout($knownOrderIds, $method, $cart);
             }
 

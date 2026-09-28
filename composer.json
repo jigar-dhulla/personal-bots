@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.4",
         "jigar-dhulla/laravel-whatsapp-ai-agent": "^0.2.0",
+        "jigar-dhulla/swiggy-mcp": "^0.1",
         "laravel/ai": "^0.6.8",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0"

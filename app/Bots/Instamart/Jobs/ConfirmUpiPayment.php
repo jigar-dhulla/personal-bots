@@ -7,7 +7,6 @@ namespace App\Bots\Instamart\Jobs;
 use App\Bots\Instamart\Enums\OrderStatus;
 use App\Bots\Instamart\Models\Order;
 use App\Bots\Instamart\Swiggy\InstamartClient;
-use App\Bots\Instamart\Swiggy\SwiggyException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -15,6 +14,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
 use JigarDhulla\LaravelWhatsApp\Services\Wacli;
+use JigarDhulla\SwiggyMcp\Exceptions\SwiggyException;
+use JigarDhulla\SwiggyMcp\Exceptions\TransientException;
 
 /**
  * Follows a UPI checkout until the payment settles, then tells the chat.
@@ -57,7 +58,7 @@ class ConfirmUpiPayment implements ShouldQueue
                 'orderId' => $this->order->order_id,
             ]);
         } catch (SwiggyException $exception) {
-            if ($exception->isTransient() && Carbon::now()->lt($this->deadline)) {
+            if ($exception instanceof TransientException && Carbon::now()->lt($this->deadline)) {
                 $this->pollAgain();
 
                 return;

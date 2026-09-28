@@ -9,7 +9,7 @@ use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use RuntimeException;
+use JigarDhulla\SwiggyMcp\Exceptions\OAuthException;
 
 use function Laravel\Prompts\text;
 
@@ -35,47 +35,32 @@ class LoginCommand extends Command
 
         try {
             $clientId = $auth->clientIdFor($redirectUri);
-        } catch (RuntimeException $exception) {
+        } catch (OAuthException $exception) {
             $this->error($exception->getMessage());
 
             return self::FAILURE;
         }
 
-        $pkce = SwiggyAuth::pkcePair();
-        $state = SwiggyAuth::state();
+        $login = $auth->authorize($clientId, $redirectUri);
 
         $this->line('1. Open this link and log in with your phone number and OTP:');
         $this->newLine();
-        $this->line($auth->authorizationUrl($clientId, $redirectUri, $pkce['challenge'], $state));
+        $this->line($login->url);
         $this->newLine();
         $this->line('2. Your browser then goes to '.$redirectUri.', which may not load. That is expected.');
         $this->line('   Copy the full address from the browser bar and paste it below. The code is only valid for about two minutes.');
 
         $redirected = text(label: 'Redirected URL', required: true);
 
-        parse_str((string) parse_url(trim($redirected), PHP_URL_QUERY), $query);
-
-        if (($query['state'] ?? null) !== $state) {
-            $this->error('That URL does not belong to this login attempt (state mismatch). Run the command again.');
-
-            return self::FAILURE;
-        }
-
-        if (blank($query['code'] ?? null)) {
-            $this->error('No authorization code in that URL'.(filled($query['error'] ?? null) ? ': '.$query['error'] : '.'));
-
-            return self::FAILURE;
-        }
-
         try {
-            $token = $auth->exchange($clientId, (string) $query['code'], $pkce['verifier'], $redirectUri);
-        } catch (RuntimeException $exception) {
-            $this->error($exception->getMessage());
+            $token = $auth->exchange($login, $redirected);
+        } catch (OAuthException $exception) {
+            $this->error($exception->getMessage().' Run the command again.');
 
             return self::FAILURE;
         }
 
-        $connection = Connection::store($clientId, $redirectUri, $token['access_token'], $token['expires_in']);
+        $connection = Connection::store($clientId, $redirectUri, $token->value, $token->expiresIn);
 
         $this->info(sprintf('Logged in to Swiggy. The token expires %s (%s).', $connection->expires_at->toDayDateTimeString(), $connection->expires_at->diffForHumans()));
 
