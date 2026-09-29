@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', "Jigar's Bots"),
+    'name' => env('APP_NAME', 'Personal Bots'),
 
     /*
     |--------------------------------------------------------------------------
