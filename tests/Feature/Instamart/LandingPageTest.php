@@ -9,7 +9,7 @@ it('explains that the Instamart bot is private and invites forking', function ()
         ->assertSee('not open to anyone else', false)
         ->assertSee('Fork on GitHub')
         ->assertSee('https://github.com/jigar-dhulla/personal-bots', false)
-        ->assertSee('Not affiliated with or endorsed by Swiggy.');
+        ->assertSee('Powered by Swiggy');
 });
 
 it('embeds the demo video from the public directory', function () {

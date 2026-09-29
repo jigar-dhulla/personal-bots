@@ -87,7 +87,7 @@
             </main>
 
             <footer class="mt-auto pt-16 text-sm opacity-60">
-                Not affiliated with or endorsed by Swiggy. Swiggy and Instamart are trademarks of their respective owner.
+                Powered by Swiggy, through Swiggy's official Instamart MCP server. Swiggy and Instamart are trademarks of Swiggy Limited.
             </footer>
         </div>
     </body>
