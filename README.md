@@ -107,6 +107,8 @@ Members can also save their own commute: *"my usual route is Andheri to BKC, off
 
 ### Instamart
 
+**Powered by Swiggy.** The bot uses Swiggy's official [Instamart MCP server](https://mcp.swiggy.com/builders/llms.txt).
+
 Instamart orders on **one Swiggy account**, so it needs a Swiggy login. The login lasts **5 days**; log in again before it runs out (the dashboard counts down).
 
 ```bash
