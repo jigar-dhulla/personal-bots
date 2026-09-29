@@ -1,6 +1,6 @@
 <img src="public/logo.svg" alt="" width="72" align="right">
 
-# Jigar's Bots
+# Personal Bots
 
 A set of personal WhatsApp bots that share **one phone number**. You message the number, and each bot replies only in the chats you've set it up for.
 
