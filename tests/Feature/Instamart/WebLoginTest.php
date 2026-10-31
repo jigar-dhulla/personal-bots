@@ -44,6 +44,16 @@ function startWebLogin(): string
     return $query['state'];
 }
 
+/**
+ * Start a login the way the WhatsApp link does, with no dashboard session.
+ */
+function pendingLoginState(): string
+{
+    parse_str((string) parse_url(app(SwiggyAuth::class)->beginLogin()->url, PHP_URL_QUERY), $query);
+
+    return $query['state'];
+}
+
 it('logs in through the browser and stores the token for the web callback', function () {
     $state = startWebLogin();
 
@@ -65,7 +75,7 @@ it('logs in through the browser and stores the token for the web callback', func
 
 it('finishes a login opened from the WhatsApp link without a dashboard session and tells the owner', function () {
     config(['services.swiggy.owner_jid' => OWNER_JID]);
-    $wacli = mock(Wacli::class);
+    $wacli = test()->mock(Wacli::class);
     $wacli->shouldReceive('send')->once()->withArgs(fn (string $jid, string $message) => $jid === OWNER_JID && str_contains($message, 'Logged in to Swiggy'))->andReturn([true, '', '']);
 
     $login = app(SwiggyAuth::class)->beginLogin();
@@ -79,7 +89,7 @@ it('finishes a login opened from the WhatsApp link without a dashboard session a
 });
 
 it('rejects a callback whose state this app did not issue', function () {
-    startWebLogin();
+    pendingLoginState();
 
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => 'forged']))
         ->assertOk()
@@ -91,7 +101,7 @@ it('rejects a callback whose state this app did not issue', function () {
 });
 
 it('only lets a state be used once', function () {
-    $state = startWebLogin();
+    $state = pendingLoginState();
 
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]));
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]))
@@ -101,7 +111,7 @@ it('only lets a state be used once', function () {
 });
 
 it('reports a login the user cancelled at Swiggy', function () {
-    $state = startWebLogin();
+    $state = pendingLoginState();
 
     $this->get(route('instamart.callback', ['error' => 'access_denied', 'state' => $state]))
         ->assertSee('Swiggy did not complete the login: access_denied');

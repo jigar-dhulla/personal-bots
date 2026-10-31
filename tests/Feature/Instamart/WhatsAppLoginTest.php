@@ -31,7 +31,7 @@ beforeEach(function () {
 
 function expectLoginLinkSent(int $times = 1): void
 {
-    $wacli = mock(Wacli::class);
+    $wacli = test()->mock(Wacli::class);
     $wacli->shouldReceive('send')->times($times)
         ->withArgs(fn (string $jid, string $message) => $jid === LOGIN_OWNER && str_contains($message, 'https://mcp.swiggy.com/auth/authorize?'))
         ->andReturn([true, '', '']);
@@ -47,7 +47,7 @@ it('sends a link on demand from the command', function () {
 
 it('needs an owner chat to send to', function () {
     config(['services.swiggy.owner_jid' => null]);
-    mock(Wacli::class)->shouldNotReceive('send');
+    test()->mock(Wacli::class)->shouldNotReceive('send');
 
     $this->artisan('instamart:login-link')->assertFailed();
 });
@@ -90,7 +90,7 @@ it('refuses a pasted address it did not issue a state for', function () {
 });
 
 it('only lets the owner chat renew the login', function () {
-    mock(Wacli::class)->shouldNotReceive('send');
+    test()->mock(Wacli::class)->shouldNotReceive('send');
 
     $reply = (string) (new SwiggyLoginTool(chatJid: 'group@g.us', senderJid: LOGIN_OWNER))->handle(new Request([]));
 
