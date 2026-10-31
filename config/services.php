@@ -39,6 +39,10 @@ return [
         'instamart_url' => env('SWIGGY_INSTAMART_URL', 'https://mcp.swiggy.com/im'),
         'auth_url' => env('SWIGGY_AUTH_URL', 'https://mcp.swiggy.com'),
         'redirect_uri' => env('SWIGGY_REDIRECT_URI', 'http://localhost:8765/callback'),
+        // WhatsApp chat JID that gets the login link and may finish a login.
+        // Defaults to the first INSTAMART_CHATS entry.
+        'owner_jid' => env('INSTAMART_OWNER_JID')
+            ?: trim((string) (explode(',', (string) env('INSTAMART_CHATS'))[0])),
     ],
 
     'slack' => [

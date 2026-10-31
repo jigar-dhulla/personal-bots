@@ -6,6 +6,7 @@ namespace App\Bots\Instamart\Tools;
 
 use App\Bots\Instamart\Models\ChatAddress;
 use App\Bots\Instamart\Swiggy\InstamartClient;
+use App\Bots\Instamart\Swiggy\LoginLink;
 use Illuminate\Support\Facades\Cache;
 use JigarDhulla\SwiggyMcp\Exceptions\AuthenticationException;
 use JigarDhulla\SwiggyMcp\Exceptions\RateLimitedException;
@@ -62,11 +63,24 @@ abstract class InstamartTool implements Tool
     protected function describeFailure(SwiggyException $exception): string
     {
         return match (true) {
-            $exception instanceof AuthenticationException => 'My Swiggy login has expired. The owner needs to run `php artisan instamart:login` before I can shop again.',
+            $exception instanceof AuthenticationException => $this->describeExpiredLogin(),
             $exception instanceof RateLimitedException => 'Swiggy is asking me to slow down. Try again in a minute.',
             $exception instanceof TransientException => 'Swiggy is not responding right now. Try again in a little while.',
             default => 'Swiggy says: '.$exception->getMessage(),
         };
+    }
+
+    /**
+     * Tell the user the login lapsed, and send the owner a fresh link
+     * (throttled) so renewing it is a tap away.
+     */
+    private function describeExpiredLogin(): string
+    {
+        $linkSent = app(LoginLink::class)->sendThrottled();
+
+        return $linkSent
+            ? 'My Swiggy login has expired. I sent the owner a login link on WhatsApp; once it is done I can shop again.'
+            : 'My Swiggy login has expired. The owner can ask me for a new login link, or run `php artisan instamart:login`.';
     }
 
     /**

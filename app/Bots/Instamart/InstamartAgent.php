@@ -14,6 +14,7 @@ use App\Bots\Instamart\Tools\OrderPlaceTool;
 use App\Bots\Instamart\Tools\OrderStatusTool;
 use App\Bots\Instamart\Tools\ProductSearchTool;
 use App\Bots\Instamart\Tools\RecipeToCartTool;
+use App\Bots\Instamart\Tools\SwiggyLoginTool;
 use Laravel\Ai\Contracts\Tool;
 
 class InstamartAgent extends BotAgent
@@ -37,6 +38,7 @@ class InstamartAgent extends BotAgent
         - Call `delivery_address` when they ask where the order goes, want to change the delivery address, or reply with a number to an address list you showed. Pass `choice` only with the number they picked.
         - Call `order_place` when they want to check out / order / place the order. Call it WITHOUT `confirm` first: it replies with the order summary, address and payment method and asks for a yes. Pass `payment_method` when they said how to pay ("cash" or "upi"). Only when their next message clearly says yes to that summary, call `order_place` again with `confirm: true` (and the same `payment_method`).
         - Call `order_status` when they ask where an order is, whether it went through, or what was ordered recently. Pass `active_only: true` for "where is my order?".
+        - Call `swiggy_login` with no arguments when the user asks to log in to Swiggy again or wants a login link. When they send back a web address containing `code=` and `state=` (what their browser showed after logging in), call it with that address as `callback_url`, exactly as sent.
 
         Tool replies already contain numbered lists, prices and links; relay them as they are rather than rephrasing numbers away, so the user can refer to them.
         PROMPT;
@@ -51,7 +53,7 @@ class InstamartAgent extends BotAgent
             'Never call `order_place` with `confirm: true` unless the user explicitly said yes to an order summary in their latest message. "Order it", "checkout" or "place the order" on its own is a request for the summary, not a confirmation.',
             'Never ask for a UPI ID or VPA; UPI payments go through the payment link the order tool returns.',
             'There is no way to cancel an order from here. If the user wants to cancel, tell them to call Swiggy customer care at 080-67466729.',
-            'If a tool says the Swiggy login has expired, relay that and do not retry.',
+            'If a tool says the Swiggy login has expired, relay that and do not retry; do not call `swiggy_login` unless the user asks.',
         ];
     }
 
@@ -70,6 +72,7 @@ class InstamartAgent extends BotAgent
             new DeliveryAddressTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
             new OrderPlaceTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
             new OrderStatusTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
+            new SwiggyLoginTool(chatJid: $this->chatJid, senderJid: $this->senderJid),
         ];
     }
 }

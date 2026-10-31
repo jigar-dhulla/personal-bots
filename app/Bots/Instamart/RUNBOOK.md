@@ -40,6 +40,13 @@ Locally, drop the `dc exec …` prefix and run `php artisan …` directly.
 
 ## Routine: log in again every 5 days
 
+**From WhatsApp (preferred).** Set `INSTAMART_OWNER_JID` (defaults to the first `INSTAMART_CHATS` entry) and run the `scheduler` container (`schedule:work`). Hourly, `instamart:login-link --if-needed` DMs the owner a Swiggy login link once the token has under 12 h left or is gone (at most one every 6 h). A tool hitting an expired login sends one too, and you can ask the bot "log in to Swiggy" any time. `instamart:login-link` sends one on demand.
+
+- **HTTPS redirect:** tap the link, log in with phone + OTP. The callback finishes the login and the bot messages "✅ Logged in to Swiggy".
+- **Localhost redirect (current prod):** tap the link, log in, then copy the full address of the page that fails to load and send it to the bot within ~2 minutes. The `swiggy_login` tool finishes the login.
+
+Only the owner chat may finish a login. Pending logins live in the cache for 15 minutes, keyed by one-time state.
+
 Swiggy issues **no refresh tokens**. The access token lasts 5 days (`expires_in` 432000). Swiggy's session lasts 30 days from last use, so a re-login within that window usually doesn't need a new OTP. The dashboard's **Swiggy login** card counts down the days left.
 
 Which flow you use depends on `SWIGGY_REDIRECT_URI`:
@@ -55,9 +62,9 @@ Which flow you use depends on `SWIGGY_REDIRECT_URI`:
 
 1. Log in to the dashboard (`/admin`), then click **Swiggy login** in the nav. The link only shows when the redirect URI is HTTPS.
 2. Log in at Swiggy with phone + OTP. Swiggy sends you back to `/instamart/callback`, and the dashboard shows "Logged in to Swiggy…".
-3. If it says the login "did not start from this dashboard session", you finished a login started elsewhere or opened the callback twice. Click **Swiggy login** again.
+3. If it says the login link "expired or was already used", you opened the callback twice or waited over 15 minutes. Ask for a new link.
 
-The callback needs the dashboard login, and it only accepts the state this session started, once. A forged or replayed callback can't replace the token. Changing `SWIGGY_REDIRECT_URI` registers a new OAuth client on the next login, because a client only works with the redirect it was registered with.
+The callback needs no dashboard login (the link opens on your phone); it only accepts a one-time state this app issued. A forged or replayed callback can't replace the token. Changing `SWIGGY_REDIRECT_URI` registers a new OAuth client on the next login, because a client only works with the redirect it was registered with.
 
 What can go wrong:
 - **Swiggy shows an error instead of the OTP screen, e.g. an invalid or unregistered `redirect_uri`.** The URI isn't allowlisted, or doesn't match it exactly (scheme, host, path, no trailing slash). [Roll back](#switching-to-the-browser-flow) and check with builders@swiggy.in.
