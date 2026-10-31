@@ -9,7 +9,7 @@ Route::prefix('instamart')->name('instamart.')->group(function () {
     Route::view('/', 'instamart.home')->name('home');
 
     /** Swiggy's OAuth redirect lands here; it must match SWIGGY_REDIRECT_URI exactly. */
-    Route::get('/callback', [SwiggyLoginController::class, 'callback'])->middleware('auth')->name('callback');
+    Route::get('/callback', [SwiggyLoginController::class, 'callback'])->middleware('throttle:20,1')->name('callback');
 });
 
 Route::prefix('admin/instamart')->name('instamart.')->middleware('auth')->group(function () {

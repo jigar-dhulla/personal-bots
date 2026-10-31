@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Bots\Instamart\Models\Connection;
+use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use JigarDhulla\LaravelWhatsApp\Services\Wacli;
 
 uses(RefreshDatabase::class);
 
 const WEB_CALLBACK = 'https://bots.example.com/instamart/callback';
+const OWNER_JID = '919999999999@s.whatsapp.net';
 
 beforeEach(function () {
     config(['services.swiggy.redirect_uri' => WEB_CALLBACK]);
@@ -41,10 +44,21 @@ function startWebLogin(): string
     return $query['state'];
 }
 
+/**
+ * Start a login the way the WhatsApp link does, with no dashboard session.
+ */
+function pendingLoginState(): string
+{
+    parse_str((string) parse_url(app(SwiggyAuth::class)->beginLogin()->url, PHP_URL_QUERY), $query);
+
+    return $query['state'];
+}
+
 it('logs in through the browser and stores the token for the web callback', function () {
     $state = startWebLogin();
 
-    $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]))
+    $this->actingAs(User::factory()->create())
+        ->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]))
         ->assertRedirect(route('admin.dashboard'))
         ->assertSessionHas('status', fn (string $status) => str_starts_with($status, 'Logged in to Swiggy.'));
 
@@ -59,39 +73,54 @@ it('logs in through the browser and stores the token for the web callback', func
         ->access_token->toBe('web-token');
 });
 
-it('rejects a callback whose state this session did not start', function () {
-    startWebLogin();
+it('finishes a login opened from the WhatsApp link without a dashboard session and tells the owner', function () {
+    config(['services.swiggy.owner_jid' => OWNER_JID]);
+    $wacli = test()->mock(Wacli::class);
+    $wacli->shouldReceive('send')->once()->withArgs(fn (string $jid, string $message) => $jid === OWNER_JID && str_contains($message, 'Logged in to Swiggy'))->andReturn([true, '', '']);
+
+    $login = app(SwiggyAuth::class)->beginLogin();
+    parse_str((string) parse_url($login->url, PHP_URL_QUERY), $query);
+
+    $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $query['state']]))
+        ->assertOk()
+        ->assertSee('You are logged in');
+
+    expect(Connection::query()->sole()->access_token)->toBe('web-token');
+});
+
+it('rejects a callback whose state this app did not issue', function () {
+    pendingLoginState();
 
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => 'forged']))
-        ->assertRedirect(route('admin.dashboard'))
-        ->assertSessionHas('status', fn (string $status) => str_contains($status, 'did not start from this dashboard session'));
+        ->assertOk()
+        ->assertSee('Login did not finish')
+        ->assertSee('expired or was already used');
 
     Http::assertNotSent(fn (Request $request) => str_ends_with($request->url(), '/auth/token'));
     expect(Connection::query()->count())->toBe(0);
 });
 
 it('only lets a state be used once', function () {
-    $state = startWebLogin();
+    $state = pendingLoginState();
 
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]));
     $this->get(route('instamart.callback', ['code' => 'auth-code', 'state' => $state]))
-        ->assertSessionHas('status', fn (string $status) => str_contains($status, 'did not start from this dashboard session'));
+        ->assertSee('expired or was already used');
 
     Http::assertSentCount(2);
 });
 
 it('reports a login the user cancelled at Swiggy', function () {
-    $state = startWebLogin();
+    $state = pendingLoginState();
 
     $this->get(route('instamart.callback', ['error' => 'access_denied', 'state' => $state]))
-        ->assertSessionHas('status', 'Swiggy did not complete the login: access_denied');
+        ->assertSee('Swiggy did not complete the login: access_denied');
 
     expect(Connection::query()->count())->toBe(0);
 });
 
-it('requires a dashboard login for both steps', function () {
+it('requires a dashboard login only to start a login', function () {
     $this->get(route('instamart.login'))->assertRedirect(route('login'));
-    $this->get(route('instamart.callback', ['code' => 'x', 'state' => 'y']))->assertRedirect(route('login'));
 
     Http::assertNothingSent();
 });
