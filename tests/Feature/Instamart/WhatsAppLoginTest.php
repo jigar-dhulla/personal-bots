@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Bots\Instamart\InstamartAgent;
 use App\Bots\Instamart\Models\Connection;
 use App\Bots\Instamart\Swiggy\SwiggyAuth;
 use App\Bots\Instamart\Tools\OrderStatusTool;
@@ -36,33 +37,7 @@ function expectLoginLinkSent(int $times = 1): void
         ->andReturn([true, '', '']);
 }
 
-it('sends the owner a login link when the token is missing', function () {
-    expectLoginLinkSent();
-
-    $this->artisan('instamart:login-link --if-needed')->expectsOutputToContain('Login link sent')->assertSuccessful();
-});
-
-it('sends a link when the token is about to expire but not while it has days left', function () {
-    Connection::factory()->create(['expires_at' => now()->addDays(4)]);
-    mock(Wacli::class)->shouldNotReceive('send');
-
-    $this->artisan('instamart:login-link --if-needed')->assertSuccessful();
-
-    Connection::query()->delete();
-    Connection::factory()->create(['expires_at' => now()->addHours(6)]);
-    expectLoginLinkSent();
-
-    $this->artisan('instamart:login-link --if-needed')->assertSuccessful();
-});
-
-it('does not send links more than once in the throttle window', function () {
-    expectLoginLinkSent(1);
-
-    $this->artisan('instamart:login-link --if-needed')->assertSuccessful();
-    $this->artisan('instamart:login-link --if-needed')->expectsOutputToContain('Skipped')->assertSuccessful();
-});
-
-it('always sends a link when asked explicitly', function () {
+it('sends a link on demand from the command', function () {
     Connection::factory()->create();
     expectLoginLinkSent(2);
 
@@ -121,4 +96,20 @@ it('only lets the owner chat renew the login', function () {
 
     expect($reply)->toContain('Only the owner');
     Http::assertNothingSent();
+});
+
+it('tells the agent up front when the owner is not logged in', function () {
+    $agent = (new InstamartAgent)->forChat(LOGIN_OWNER, LOGIN_OWNER);
+
+    expect((string) $agent->instructions())->toContain('The Swiggy login is NOT active');
+
+    Connection::factory()->create();
+
+    expect((string) $agent->instructions())->not->toContain('NOT active');
+});
+
+it('does not push the login flow in chats other than the owner chat', function () {
+    $agent = (new InstamartAgent)->forChat('group@g.us', LOGIN_OWNER);
+
+    expect((string) $agent->instructions())->not->toContain('NOT active');
 });

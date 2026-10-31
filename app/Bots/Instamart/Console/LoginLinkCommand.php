@@ -9,7 +9,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('instamart:login-link {--if-needed : Only send when the login is missing, expired or about to expire, and at most once every few hours}')]
+#[Signature('instamart:login-link')]
 #[Description('Send the owner a Swiggy login link on WhatsApp.')]
 class LoginLinkCommand extends Command
 {
@@ -19,16 +19,6 @@ class LoginLinkCommand extends Command
             $this->error('Set INSTAMART_OWNER_JID (or INSTAMART_CHATS) so there is a chat to send the link to.');
 
             return self::FAILURE;
-        }
-
-        if ($this->option('if-needed')) {
-            if (! LoginLink::needsRenewal()) {
-                return self::SUCCESS;
-            }
-
-            $this->line($link->sendThrottled() ? 'Login link sent.' : 'Skipped: a link went out recently or Swiggy refused.');
-
-            return self::SUCCESS;
         }
 
         if (! $link->send()) {

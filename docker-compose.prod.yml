@@ -63,12 +63,6 @@ services:
     depends_on:
       - wacli
 
-  scheduler:
-    <<: *php
-    command: ["php", "artisan", "schedule:work"]
-    depends_on:
-      - wacli
-
   wa-listen:
     <<: *php
     command: ["php", "artisan", "wa:listen", "-vvv"]

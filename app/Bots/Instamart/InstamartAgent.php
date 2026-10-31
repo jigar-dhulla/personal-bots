@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Bots\Instamart;
 
 use App\Bots\BotAgent;
+use App\Bots\Instamart\Models\Connection;
+use App\Bots\Instamart\Swiggy\LoginLink;
 use App\Bots\Instamart\Tools\CartAddTool;
 use App\Bots\Instamart\Tools\CartChangeTool;
 use App\Bots\Instamart\Tools\CartClearTool;
@@ -22,6 +24,22 @@ class InstamartAgent extends BotAgent
     protected function persona(): string
     {
         return 'You are the Instamart bot, a grocery assistant inside WhatsApp. You shop on Swiggy Instamart for the account owner: you find products, check what is in stock, fill the cart, and place orders.';
+    }
+
+    /**
+     * When the owner writes while the Swiggy login is missing or expired,
+     * tell the model up front so it starts the login instead of failing a
+     * shopping call first.
+     */
+    protected function context(): string
+    {
+        $context = parent::context();
+
+        if (LoginLink::isOwnerChat($this->chatJid) && Connection::active() === null) {
+            $context .= "\nThe Swiggy login is NOT active, so no shopping tool can work. Unless the message is a pasted login address (then call `swiggy_login` with it), call `swiggy_login` with no arguments first to send the owner a login link, and tell them to tap it and log in.";
+        }
+
+        return $context;
     }
 
     protected function guidance(): string

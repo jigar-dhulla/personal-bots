@@ -40,7 +40,7 @@ Locally, drop the `dc exec …` prefix and run `php artisan …` directly.
 
 ## Routine: log in again every 5 days
 
-**From WhatsApp (preferred).** Set `INSTAMART_OWNER_JID` (defaults to the first `INSTAMART_CHATS` entry) and run the `scheduler` container (`schedule:work`). Hourly, `instamart:login-link --if-needed` DMs the owner a Swiggy login link once the token has under 12 h left or is gone (at most one every 6 h). A tool hitting an expired login sends one too, and you can ask the bot "log in to Swiggy" any time. `instamart:login-link` sends one on demand.
+**From WhatsApp (preferred).** Set `INSTAMART_OWNER_JID` (defaults to the first `INSTAMART_CHATS` entry). No scheduler is needed: when the owner messages the bot and the login is missing or expired, the agent is told so and sends a login link (`swiggy_login`). A shopping tool that hits an expired login also sends one (at most one unprompted link every 6 h). `instamart:login-link` sends one from the terminal.
 
 - **HTTPS redirect:** tap the link, log in with phone + OTP. The callback finishes the login and the bot messages "✅ Logged in to Swiggy".
 - **Localhost redirect (current prod):** tap the link, log in, then copy the full address of the page that fails to load and send it to the bot within ~2 minutes. The `swiggy_login` tool finishes the login.

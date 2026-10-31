@@ -19,11 +19,8 @@ use JigarDhulla\SwiggyMcp\Exceptions\OAuthException;
  */
 class LoginLink
 {
-    /** Minimum gap between unprompted links, so a failing token cannot spam the chat. */
+    /** Minimum gap between links sent without being asked, so a failing token cannot spam the chat. */
     private const int THROTTLE_HOURS = 6;
-
-    /** Start nudging this long before the token runs out. */
-    private const int RENEW_BEFORE_HOURS = 12;
 
     public function __construct(private SwiggyAuth $auth, private Wacli $wacli) {}
 
@@ -38,17 +35,6 @@ class LoginLink
     public static function isOwnerChat(?string $chatJid): bool
     {
         return $chatJid !== null && $chatJid === self::ownerJid();
-    }
-
-    /**
-     * Whether the saved login is missing, expired, or about to be.
-     */
-    public static function needsRenewal(): bool
-    {
-        $connection = Connection::current();
-
-        return $connection === null
-            || $connection->expires_at->lte(now()->addHours(self::RENEW_BEFORE_HOURS));
     }
 
     /**
